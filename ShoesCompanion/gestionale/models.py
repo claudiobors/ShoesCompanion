@@ -48,7 +48,7 @@ class CoppiaMisura(models.Model):
     Questa non è più legata direttamente alla scarpa nel suo complesso, ma a un componente specifico
     all'interno di un modello di scarpa.
     """
-    descrizione_misura = models.CharField(max_length=100, help_text="Es. 'Taglia 42', 'Lunghezza 10cm per tacco'")
+    descrizione_misura = models.CharField(max_length=100,default="descrizione", help_text="Es. 'Taglia 42', 'Lunghezza 10cm per tacco'")
     # Puoi aggiungere campi più specifici se necessario, es:
     # lunghezza = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     # larghezza = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
@@ -128,8 +128,8 @@ class Modello(models.Model):
 
 class TipoComponente(models.Model):
     """ Modello per definire i tipi di componente (es. Suola, Tacco, Tomaia) """
-    nome = models.CharField(max_length=100, unique=True)
-    descrizione = models.TextField(blank=True, null=True)
+    nome = models.CharField(max_length=100, unique=True, default="componente")
+    descrizione = models.TextField(blank=True, null=True, default="componente di default")
 
     class Meta:
         verbose_name_plural = "Tipi Componente"
@@ -144,8 +144,8 @@ class Componente(models.Model):
     Ogni componente ha un tipo (es. 'Suola'), un colore e delle misure specifiche.
     """
     modello = models.ForeignKey(Modello, on_delete=models.CASCADE, related_name='componenti')
-    nome_componente = models.ForeignKey(TipoComponente, on_delete=models.PROTECT, help_text="Tipo di componente (es. Suola, Tacco)")
-    colore = models.ForeignKey(Colore, on_delete=models.SET_NULL, null=True, blank=True, help_text="Colore specifico per questo componente in questo modello")
+    nome_componente = models.ForeignKey(TipoComponente, on_delete=models.PROTECT, help_text="Tipo di componente (es. Suola, Tacco)",default="componente")
+    colore = models.ForeignKey(Colore, on_delete=models.SET_NULL, null=True, blank=True,default="generico", help_text="Colore specifico per questo componente in questo modello")
     # Rimosso: coppie_misure = models.ManyToManyField(CoppiaMisura, blank=True)
     # Le misure sono ora gestite tramite MisuraComponente
     note = models.TextField(blank=True, null=True)
@@ -268,7 +268,7 @@ class DettaglioOrdine(models.Model):
     Le misure specifiche dei singoli componenti (es. lunghezza suola per taglia 42) sono definite in MisuraComponente.
     """
     ordine = models.ForeignKey(Ordine, on_delete=models.CASCADE, related_name='dettagli')
-    coppia_misura_scarpa = models.ForeignKey(CoppiaMisura, on_delete=models.CASCADE, help_text="Taglia della scarpa per questa riga d'ordine (es. Taglia 42)")
+    coppia_misura_scarpa = models.ForeignKey(CoppiaMisura, on_delete=models.CASCADE,default="", help_text="Taglia della scarpa per questa riga d'ordine (es. Taglia 42)")
     quantita = models.IntegerField(validators=[MinValueValidator(1)])
     note = models.TextField(blank=True, null=True)
 
