@@ -1,0 +1,12 @@
+{% comment %} File: gestionale/templates/gestionale/clienti/cliente_actions.html {% endcomment %}
+<div class="btn-group btn-group-sm" role="group" aria-label="Azioni Cliente">
+    <a href="{% url 'cliente_detail' record.pk %}" class="btn btn-outline-info" title="Dettagli">
+        <i class="fas fa-eye"></i>
+    </a>
+    <a href="{% url 'cliente_update' record.pk %}" class="btn btn-outline-primary" title="Modifica">
+        <i class="fas fa-edit"></i>
+    </a>
+    <a href="{% url 'cliente_delete' record.pk %}" class="btn btn-outline-danger" title="Elimina">
+        <i class="fas fa-trash-alt"></i>
+    </a>
+</div>

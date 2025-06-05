@@ -1,0 +1,110 @@
+{% extends 'gestionale/base.html' %}
+{% load static %} {# Aggiunto per coerenza, anche se non usato direttamente qui potrebbe servire in futuro #}
+
+{% block title %}
+    {% if form.instance.pk %}
+        Modifica Cliente: {{ form.instance.nome }}
+    {% else %}
+        Nuovo Cliente
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 offset-lg-2">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas {% if form.instance.pk %}fa-edit{% else %}fa-user-plus{% endif %}"></i>
+                        {% if form.instance.pk %}
+                            Modifica Cliente
+                        {% else %}
+                            Crea Nuovo Cliente
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <p class="mb-0">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.nome.id_for_label }}" class="form-label">{{ form.nome.label }} <span class="text-danger">*</span></label>
+                                {{ form.nome }}
+                                {% if form.nome.errors %}<div class="invalid-feedback d-block">{{ form.nome.errors }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.numero_telefono.id_for_label }}" class="form-label">{{ form.numero_telefono.label }}</label>
+                                {{ form.numero_telefono }}
+                                {% if form.numero_telefono.errors %}<div class="invalid-feedback d-block">{{ form.numero_telefono.errors }}</div>{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.indirizzo.id_for_label }}" class="form-label">{{ form.indirizzo.label }}</label>
+                            {{ form.indirizzo }}
+                            {% if form.indirizzo.errors %}<div class="invalid-feedback d-block">{{ form.indirizzo.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.partita_IVA.id_for_label }}" class="form-label">{{ form.partita_IVA.label }}</label>
+                            {{ form.partita_IVA }}
+                            {% if form.partita_IVA.errors %}<div class="invalid-feedback d-block">{{ form.partita_IVA.errors }}</div>{% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label }}</label>
+                            {{ form.note }}
+                            {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
+                        </div>
+
+                        {# Aggiunta per campi nascosti o specifici, se presenti #}
+                        {% for hidden_field in form.hidden_fields %}
+                            {{ hidden_field }}
+                        {% endfor %}
+
+
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if form.instance.pk %}{% url 'cliente_detail' form.instance.pk %}{% else %}{% url 'cliente_list' %}{% endif %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Annulla
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}
+                                    Salva Modifiche
+                                {% else %}
+                                    Crea Cliente
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Aggiungi qui eventuali script JS specifici per questa pagina, se necessari.
+// Esempio: validazioni custom, interazioni particolari con i campi del form.
+$(document).ready(function() {
+    // Aggiunge la classe form-control a tutti gli input e textarea visibili del form
+    // se non ce l'hanno già, per uniformare lo stile con Bootstrap.
+    $('form input:visible:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"])').addClass('form-control');
+    $('form textarea:visible').addClass('form-control');
+    $('form select:visible').addClass('form-select'); // Per i select Bootstrap
+});
+</script>
+{% endblock %}

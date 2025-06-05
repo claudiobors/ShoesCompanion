@@ -1,0 +1,15 @@
+{% comment %} File: gestionale/templates/gestionale/modelli/modello_actions.html {% endcomment %}
+<div class="btn-group btn-group-sm" role="group" aria-label="Azioni Modello">
+    <a href="{% url 'modello_detail' record.pk %}" class="btn btn-outline-info" title="Dettagli">
+        <i class="fas fa-eye"></i>
+    </a>
+    <a href="{% url 'modello_update' record.pk %}" class="btn btn-outline-primary" title="Modifica">
+        <i class="fas fa-edit"></i>
+    </a>
+    <a href="{% url 'modello_duplicate' record.pk %}" class="btn btn-outline-secondary" title="Duplica">
+        <i class="fas fa-copy"></i>
+    </a>
+    <a href="{% url 'modello_delete' record.pk %}" class="btn btn-outline-danger" title="Elimina">
+        <i class="fas fa-trash-alt"></i>
+    </a>
+</div>

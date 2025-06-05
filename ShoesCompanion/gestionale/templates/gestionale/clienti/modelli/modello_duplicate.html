@@ -1,0 +1,40 @@
+{% extends 'gestionale/base.html' %}
+{% load static %}
+
+{% block title %}Duplica Modello - {{ modello.nome }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 offset-lg-2">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h3 class="mb-0"><i class="fas fa-copy"></i> Duplica Modello</h3>
+                </div>
+                <div class="card-body">
+                    <p>Stai per duplicare il modello: <strong>{{ modello.nome }}</strong> (Cliente: {{ modello.cliente.nome }}).</p>
+                    <p>Tutti i suoi componenti e le relative misure specifiche saranno copiati nel nuovo modello.</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_new_name" class="form-label">Nome per il nuovo modello duplicato:</label>
+                            <input type="text" name="new_name" id="id_new_name" class="form-control" value="{{ modello.nome }} (Copia)" required>
+                            <small class="form-text text-muted">Se non specificato, verrà usato "{{ modello.nome }} (Copia)".</small>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'modello_detail' modello.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Annulla
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check-double"></i> Conferma Duplicazione
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
