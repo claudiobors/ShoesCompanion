@@ -1,0 +1,58 @@
+/* Stili personalizzati */
+body {
+    padding-top: 20px;
+    background-color: #f8f9fa;
+}
+
+.card {
+    margin-bottom: 20px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+.table-responsive {
+    margin-top: 10px;
+}
+
+.badge {
+    font-weight: normal;
+}
+
+.color-preview {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    border: 1px solid #ddd;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+/* Stili per le immagini */
+.img-thumbnail {
+    max-width: 100px;
+    max-height: 100px;
+}
+
+/* Stili per i form */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+/* Stili per i pulsanti di azione */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Stili per le tabelle */
+.table th {
+    white-space: nowrap;
+}
+
+/* Stili per i tooltip */
+.tooltip-inner {
+    max-width: 300px;
+}

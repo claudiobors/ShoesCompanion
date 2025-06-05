@@ -1,0 +1,79 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}{% if form.instance.pk %}Modifica{% else %}Nuovo{% endif %} Colore{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">{% if form.instance.pk %}Modifica{% else %}Nuovo{% endif %} Colore</h2>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Dati Colore</h3>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.nome.id_for_label }}">{{ form.nome.label }}</label>
+                            {{ form.nome }}
+                            {% if form.nome.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.nome.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.valore_hex.id_for_label }}">{{ form.valore_hex.label }}</label>
+                            <div class="input-group">
+                                {{ form.valore_hex }}
+                                <span class="input-group-text color-preview" style="background-color: {% if form.instance.valore_hex %}{{ form.instance.valore_hex }}{% else %}#FFFFFF{% endif %}; width: 40px;"></span>
+                            </div>
+                            {% if form.valore_hex.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.valore_hex.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="{{ form.descrizione.id_for_label }}">{{ form.descrizione.label }}</label>
+                    {{ form.descrizione }}
+                    {% if form.descrizione.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.descrizione.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{% if form.instance.pk %}{% url 'colore_detail' form.instance.pk %}{% else %}{% url 'colore_list' %}{% endif %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Annulla
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salva
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Aggiorna l'anteprima colore quando cambia il valore HEX
+        const colorInput = document.getElementById('{{ form.valore_hex.id_for_label }}');
+        const colorPreview = document.querySelector('.color-preview');
+        
+        colorInput.addEventListener('input', function() {
+            colorPreview.style.backgroundColor = this.value;
+        });
+    });
+</script>
+{% endblock %}

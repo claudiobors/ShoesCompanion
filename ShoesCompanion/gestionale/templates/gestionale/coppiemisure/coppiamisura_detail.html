@@ -1,0 +1,85 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Dettaglio Misura - {{ coppiamisura }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Dettaglio Misura</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">Scarpa {{ coppiamisura.numero_scarpa }}</h3>
+                <div>
+                    <a href="{% url 'coppiamisura_update' coppiamisura.pk %}" class="btn btn-sm btn-light me-2">
+                        <i class="fas fa-edit"></i> Modifica
+                    </a>
+                    <a href="{% url 'coppiamisura_delete' coppiamisura.pk %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Elimina
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <tr>
+                    <th width="30%">Numero Scarpa</th>
+                    <td>{{ coppiamisura.numero_scarpa }}</td>
+                </tr>
+                <tr>
+                    <th>Larghezza</th>
+                    <td>{{ coppiamisura.larghezza }}</td>
+                </tr>
+                <tr>
+                    <th>Altezza</th>
+                    <td>{{ coppiamisura.altezza }}</td>
+                </tr>
+                {% if coppiamisura.note %}
+                <tr>
+                    <th>Note</th>
+                    <td>{{ coppiamisura.note }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Componenti con questa misura</h3>
+        </div>
+        <div class="card-body">
+            {% if coppiamisura.componente_set.all %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Componente</th>
+                                <th>Modello</th>
+                                <th>Cliente</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for componente in coppiamisura.componente_set.all %}
+                                <tr>
+                                    <td>{{ componente.nome }}</td>
+                                    <td>{{ componente.modello }}</td>
+                                    <td>{{ componente.modello.cliente }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">Nessun componente utilizza questa misura.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between">
+        <a href="{% url 'coppiamisura_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Torna alla lista
+        </a>
+    </div>
+</div>
+{% endblock %}

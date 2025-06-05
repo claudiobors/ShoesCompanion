@@ -1,0 +1,46 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Lista Coppie Misure{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Lista Coppie Misure</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">Misure Registrate</h3>
+                <a href="{% url 'coppiamisura_create' %}" class="btn btn-sm btn-light">
+                    <i class="fas fa-plus"></i> Nuova Misura
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <form method="get" class="form-inline">
+                    {% for field in filter.form %}
+                        <div class="form-group me-2 mb-2">
+                            {{ field }}
+                        </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary mb-2">
+                        <i class="fas fa-filter"></i> Filtra
+                    </button>
+                    <a href="{% url 'coppiamisura_list' %}" class="btn btn-secondary mb-2 ms-2">
+                        <i class="fas fa-sync-alt"></i> Reset
+                    </a>
+                </form>
+            </div>
+            
+            {% if coppiemisure %}
+                <div class="table-responsive">
+                    {% load render_table from django_tables2 %}
+                    {% render_table table %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">Nessuna misura registrata.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

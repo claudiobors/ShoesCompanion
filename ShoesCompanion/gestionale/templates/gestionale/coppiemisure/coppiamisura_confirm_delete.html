@@ -1,0 +1,37 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Elimina Misura - {{ coppiamisura }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Conferma Eliminazione</h2>
+    
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h3 class="mb-0">Stai per eliminare la misura "{{ coppiamisura }}"</h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <strong>Attenzione!</strong> Questa azione è irreversibile.
+                {% if coppiamisura.componente_set.all %}
+                    <br><br>
+                    <strong>{{ coppiamisura.componente_set.count }}</strong> componenti utilizzano questa misura.
+                    Se procedi con l'eliminazione, la misura verrà rimossa da questi componenti.
+                {% endif %}
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'coppiamisura_detail' coppiamisura.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Annulla
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Conferma Eliminazione
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

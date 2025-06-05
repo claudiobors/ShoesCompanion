@@ -1,0 +1,75 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}{% if form.instance.pk %}Modifica{% else %}Nuova{% endif %} Coppia Misura{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">{% if form.instance.pk %}Modifica{% else %}Nuova{% endif %} Coppia Misura</h2>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Dati Misura</h3>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.numero_scarpa.id_for_label }}">{{ form.numero_scarpa.label }}</label>
+                            {{ form.numero_scarpa }}
+                            {% if form.numero_scarpa.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.numero_scarpa.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.larghezza.id_for_label }}">{{ form.larghezza.label }}</label>
+                            {{ form.larghezza }}
+                            {% if form.larghezza.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.larghezza.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.altezza.id_for_label }}">{{ form.altezza.label }}</label>
+                            {{ form.altezza }}
+                            {% if form.altezza.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.altezza.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+                    {{ form.note }}
+                    {% if form.note.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.note.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{% if form.instance.pk %}{% url 'coppiamisura_detail' form.instance.pk %}{% else %}{% url 'coppiamisura_list' %}{% endif %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Annulla
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salva
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

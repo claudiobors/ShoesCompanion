@@ -1,0 +1,114 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Login - Calzaturificio{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-header bg-primary text-white text-center">
+                    <h2><i class="fas fa-sign-in-alt"></i> Accesso al Sistema</h2>
+                </div>
+                <div class="card-body">
+                    {% if form.errors %}
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <strong>Errore!</strong> Username o password non validi.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endif %}
+
+                    {% if next %}
+                        {% if user.is_authenticated %}
+                        <div class="alert alert-warning">
+                            Il tuo account non ha accesso a questa pagina. Per procedere, effettua il login con un account autorizzato.
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            Per favore effettua il login per accedere a questa pagina.
+                        </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <form method="post" action="{% url 'login' %}">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.username.id_for_label }}" class="form-label">
+                                <i class="fas fa-user"></i> Username
+                            </label>
+                            <input type="text" 
+                                   class="form-control {% if form.errors %}is-invalid{% endif %}" 
+                                   id="{{ form.username.id_for_label }}" 
+                                   name="{{ form.username.html_name }}"
+                                   placeholder="Inserisci il tuo username"
+                                   required
+                                   autofocus>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.password.id_for_label }}" class="form-label">
+                                <i class="fas fa-lock"></i> Password
+                            </label>
+                            <input type="password" 
+                                   class="form-control {% if form.errors %}is-invalid{% endif %}" 
+                                   id="{{ form.password.id_for_label }}" 
+                                   name="{{ form.password.html_name }}"
+                                   placeholder="Inserisci la tua password"
+                                   required>
+                            <div class="form-text">
+                                <a href="{% url 'password_reset' %}">Password dimenticata?</a>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt"></i> Accedi
+                            </button>
+                            <input type="hidden" name="next" value="{{ next }}">
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    <small>© {% now "Y" %} Calzaturificio - Tutti i diritti riservati</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background-color: #f8f9fa;
+        background-image: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+    }
+    .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+        padding: 1.5rem;
+    }
+    .form-control {
+        padding: 12px;
+        border-radius: 5px;
+    }
+    .btn-primary {
+        background-color: #0d6efd;
+        border: none;
+        padding: 12px;
+        border-radius: 5px;
+        font-weight: 500;
+    }
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+    }
+    .invalid-feedback {
+        display: block;
+    }
+</style>
+{% endblock %}

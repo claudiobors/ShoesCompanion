@@ -1,0 +1,194 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Dettaglio Ordine - {{ ordine }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Dettaglio Ordine</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">Ordine #{{ ordine.id }}</h3>
+                <div>
+                    {% if ordine.stato == 'BOZZA' %}
+                        <a href="{% url 'ordine_update' ordine.pk %}" class="btn btn-sm btn-light me-2">
+                            <i class="fas fa-edit"></i> Modifica
+                        </a>
+                        <a href="{% url 'ordine_conferma' ordine.pk %}" class="btn btn-sm btn-success me-2">
+                            <i class="fas fa-check"></i> Conferma
+                        </a>
+                    {% endif %}
+                    {% if ordine.stato in ['BOZZA', 'CONFERMATO'] %}
+                        <a href="{% url 'ordine_annulla' ordine.pk %}" class="btn btn-sm btn-danger me-2">
+                            <i class="fas fa-times"></i> Annulla
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'ordine_delete' ordine.pk %}" class="btn btn-sm btn-light">
+                        <i class="fas fa-trash"></i> Elimina
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="30%">Modello</th>
+                            <td>{{ ordine.modello }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cliente</th>
+                            <td>{{ ordine.modello.cliente }}</td>
+                        </tr>
+                        <tr>
+                            <th>Data Ordine</th>
+                            <td>{{ ordine.data_ordine|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Stato</th>
+                            <td>
+                                <span class="badge 
+                                    {% if ordine.stato == 'BOZZA' %}bg-secondary
+                                    {% elif ordine.stato == 'CONFERMATO' %}bg-primary
+                                    {% elif ordine.stato == 'IN_PRODUZIONE' %}bg-warning text-dark
+                                    {% elif ordine.stato == 'COMPLETATO' %}bg-success
+                                    {% else %}bg-danger
+                                    {% endif %}">
+                                    {{ ordine.get_stato_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Quantità Totale</th>
+                            <td>{{ ordine.quantita_totale }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    {% if ordine.modello.foto %}
+                        <img src="{{ ordine.modello.foto.url }}" alt="{{ ordine.modello.nome }}" class="img-fluid rounded mb-3">
+                    {% endif %}
+                    {% if ordine.note %}
+                        <div class="card">
+                            <div class="card-header">
+                                <strong>Note</strong>
+                            </div>
+                            <div class="card-body">
+                                {{ ordine.note }}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">Dettagli Taglie</h3>
+                {% if ordine.stato == 'BOZZA' %}
+                    <a href="{% url 'dettaglioordine_create' ordine_id=ordine.pk %}" class="btn btn-sm btn-light">
+                        <i class="fas fa-plus"></i> Aggiungi Taglia
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            {% if ordine.dettagli.all %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Taglia</th>
+                                <th>Quantità</th>
+                                <th>Note</th>
+                                {% if ordine.stato == 'BOZZA' %}
+                                <th>Azioni</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dettaglio in ordine.dettagli.all %}
+                                <tr>
+                                    <td>{{ dettaglio.coppia_misura }}</td>
+                                    <td>{{ dettaglio.quantita }}</td>
+                                    <td>{{ dettaglio.note|truncatechars:30 }}</td>
+                                    {% if ordine.stato == 'BOZZA' %}
+                                    <td>
+                                        <a href="{% url 'dettaglioordine_update' dettaglio.pk %}" class="btn btn-sm btn-outline-primary" title="Modifica">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'dettaglioordine_delete' dettaglio.pk %}" class="btn btn-sm btn-outline-danger" title="Elimina">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">Nessun dettaglio taglia definito per questo ordine.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Materiali Necessari</h3>
+        </div>
+        <div class="card-body">
+            {% if materiali_necessari %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Componente</th>
+                                <th>Colore</th>
+                                <th>Quantità Totale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for (nome, colore), quantita in materiali_necessari.items %}
+                                <tr>
+                                    <td>{{ nome }}</td>
+                                    <td>
+                                        {% if colore %}
+                                            <span class="badge" style="background-color: {{ colore.valore_hex }}; color: {% if colore.valore_hex == '#FFFFFF' %}black{% else %}white{% endif %}">
+                                                {{ colore.nome }}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ quantita }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">Nessun materiale necessario calcolato.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between">
+        <a href="{% url 'ordine_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Torna alla lista
+        </a>
+        <div>
+            <a href="{% url 'bolla_ordine_pdf' ordine.pk %}" class="btn btn-primary me-2">
+                <i class="fas fa-file-pdf"></i> Bolla Ordine
+            </a>
+            <a href="{% url 'scheda_materiali_pdf' ordine.pk %}" class="btn btn-primary">
+                <i class="fas fa-file-pdf"></i> Scheda Materiali
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
