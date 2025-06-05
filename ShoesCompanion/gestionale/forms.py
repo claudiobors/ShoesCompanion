@@ -1,8 +1,9 @@
 from django import forms
 from django.forms import ModelForm, inlineformset_factory
 from .models import (
-    Cliente, Modello, Componente, Colore, 
-    CoppiaMisura, Ordine, DettaglioOrdine
+    Cliente, Modello, Componente, Colore,
+    CoppiaMisura, Ordine, DettaglioOrdine,
+    TipoComponente, MisuraComponente # Nuovi modelli
 )
 
 
@@ -23,15 +24,43 @@ class ModelloForm(ModelForm):
             'note': forms.Textarea(attrs={'rows': 3}),
         }
 
+class TipoComponenteForm(ModelForm):
+    class Meta:
+        model = TipoComponente
+        fields = ['nome', 'descrizione']
+        widgets = {
+            'descrizione': forms.Textarea(attrs={'rows': 2}),
+        }
 
 class ComponenteForm(ModelForm):
     class Meta:
         model = Componente
-        fields = ['modello', 'nome', 'colore', 'coppie_misure', 'note']
+        # 'nome' è ora 'nome_componente' (ForeignKey a TipoComponente)
+        # 'coppie_misure' è rimosso, gestito da MisuraComponenteFormSet
+        fields = ['modello', 'nome_componente', 'colore', 'note']
         widgets = {
             'note': forms.Textarea(attrs={'rows': 3}),
-            'coppie_misure': forms.SelectMultiple(attrs={'class': 'select2'}),
         }
+
+class MisuraComponenteForm(ModelForm):
+    class Meta:
+        model = MisuraComponente
+        fields = ['coppia_misura',] # Aggiungi altri campi se presenti in MisuraComponente
+        # Potresti voler personalizzare il widget per coppia_misura se necessario
+        # Esempio: far visualizzare solo CoppiaMisure non ancora associate a questo componente
+        # widgets = {
+        # 'coppia_misura': forms.Select(attrs={'class': 'select2'}),
+        # }
+
+# FormSet per gestire le MisuraComponente all'interno del form di Componente
+MisuraComponenteFormSet = inlineformset_factory(
+    Componente,
+    MisuraComponente,
+    form=MisuraComponenteForm,
+    extra=1, # Numero di form vuoti aggiuntivi
+    can_delete=True,
+    fk_name='componente'
+)
 
 
 class ColoreForm(ModelForm):
@@ -43,13 +72,14 @@ class ColoreForm(ModelForm):
             'descrizione': forms.Textarea(attrs={'rows': 3}),
         }
 
-
+# Aggiornato per il modello CoppiaMisura che ti ho fornito precedentemente
 class CoppiaMisuraForm(ModelForm):
     class Meta:
         model = CoppiaMisura
-        fields = ['numero_scarpa', 'larghezza', 'altezza', 'note']
+        fields = ['descrizione_misura', 'numero_scarpa_riferimento', 'note']
         widgets = {
             'note': forms.Textarea(attrs={'rows': 3}),
+            'descrizione_misura': forms.TextInput(attrs={'placeholder': "Es. Taglia 42 per Scarpa, Lunghezza 30cm per Suola"}),
         }
 
 
@@ -58,7 +88,7 @@ class OrdineForm(ModelForm):
         model = Ordine
         fields = ['modello', 'data_ordine', 'stato', 'note']
         widgets = {
-            'data_ordine': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'data_ordine': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
             'note': forms.Textarea(attrs={'rows': 3}),
         }
 
@@ -66,15 +96,19 @@ class OrdineForm(ModelForm):
 class DettaglioOrdineForm(ModelForm):
     class Meta:
         model = DettaglioOrdine
-        fields = ['ordine', 'coppia_misura', 'quantita', 'note']
+        # Il campo è stato rinominato in 'coppia_misura_scarpa' nel modello che ti ho fornito
+        fields = ['ordine', 'coppia_misura_scarpa', 'quantita', 'note']
         widgets = {
             'note': forms.Textarea(attrs={'rows': 3}),
         }
+        # Se 'ordine' deve essere nascosto quando usato in un formset
+        # exclude = ('ordine',)
 
 
 DettaglioOrdineFormSet = inlineformset_factory(
-    Ordine, DettaglioOrdine, 
+    Ordine, DettaglioOrdine,
     form=DettaglioOrdineForm,
     extra=1,
-    can_delete=True
+    can_delete=True,
+    fk_name='ordine'
 )

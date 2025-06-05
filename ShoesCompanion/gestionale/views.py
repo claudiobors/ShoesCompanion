@@ -9,10 +9,11 @@ from django.db.models import Sum
 from reportlab.pdfgen import canvas
 from io import BytesIO
 
-from .models import Cliente, Modello, Componente, Colore, CoppiaMisura, Ordine, DettaglioOrdine
+from .models import Cliente, Modello, Componente, Colore, CoppiaMisura, Ordine, DettaglioOrdine, TipoComponente
 from .forms import (
     ClienteForm, ModelloForm, ComponenteForm, ColoreForm, 
-    CoppiaMisuraForm, OrdineForm, DettaglioOrdineForm
+    CoppiaMisuraForm, OrdineForm, DettaglioOrdineForm,
+    TipoComponenteForm, MisuraComponenteFormSet
 )
 from .tables import (
     ClienteTable, ModelloTable, ComponenteTable, ColoreTable, 
@@ -639,3 +640,84 @@ def report_dashboard(request):
         'clienti_attivi': clienti_attivi,
     }
     return render(request, 'gestionale/report/dashboard.html', context)
+
+class ComponenteCreateView(LoginRequiredMixin, generic.CreateView):
+    model = Componente
+    form_class = ComponenteForm
+    template_name = 'gestionale/componenti/componente_form.html' # Assicurati che esista e sia aggiornato
+
+    def get_success_url(self):
+        return reverse_lazy('modello_detail', kwargs={'pk': self.object.modello.pk})
+
+    def get_initial(self):
+        initial = super().get_initial()
+        if 'modello_id' in self.kwargs:
+            initial['modello'] = get_object_or_404(Modello, pk=self.kwargs['modello_id'])
+        return initial
+
+    def get_context_data(self, **kwargs):
+        data = super().get_context_data(**kwargs)
+        if self.request.POST:
+            data['misure_formset'] = MisuraComponenteFormSet(self.request.POST, self.request.FILES, prefix='misure')
+        else:
+            # Se stiamo creando un nuovo componente, non ci sono istanze esistenti di MisuraComponente
+            data['misure_formset'] = MisuraComponenteFormSet(prefix='misure')
+        return data
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        misure_formset = context['misure_formset']
+        if form.is_valid() and misure_formset.is_valid():
+            self.object = form.save()
+            misure_formset.instance = self.object
+            misure_formset.save()
+            return redirect(self.get_success_url())
+        else:
+            # Log errors or add messages
+            print("Form errors:", form.errors)
+            print("Misure formset errors:", misure_formset.errors)
+            print("Misure formset non-form errors:", misure_formset.non_form_errors())
+            return self.render_to_response(self.get_context_data(form=form))
+
+
+class ComponenteUpdateView(LoginRequiredMixin, generic.UpdateView):
+    model = Componente
+    form_class = ComponenteForm
+    template_name = 'gestionale/componenti/componente_form.html' # Assicurati che esista e sia aggiornato
+
+    def get_success_url(self):
+        return reverse_lazy('modello_detail', kwargs={'pk': self.object.modello.pk})
+
+    def get_context_data(self, **kwargs):
+        data = super().get_context_data(**kwargs)
+        if self.request.POST:
+            data['misure_formset'] = MisuraComponenteFormSet(self.request.POST, self.request.FILES, instance=self.object, prefix='misure')
+        else:
+            data['misure_formset'] = MisuraComponenteFormSet(instance=self.object, prefix='misure')
+        return data
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        misure_formset = context['misure_formset']
+        if form.is_valid() and misure_formset.is_valid():
+            self.object = form.save()
+            misure_formset.save()
+            return redirect(self.get_success_url())
+        else:
+            print("Form errors:", form.errors)
+            print("Misure formset errors:", misure_formset.errors)
+            print("Misure formset non-form errors:", misure_formset.non_form_errors())
+            return self.render_to_response(self.get_context_data(form=form))
+
+
+class TipoComponenteListView(LoginRequiredMixin, generic.ListView):
+    model = TipoComponente
+    template_name = 'gestionale/tipicomponente/tipocomponente_list.html' # Crea questo template
+    context_object_name = 'tipicomponente_list'
+    paginate_by = 20
+
+class TipoComponenteCreateView(LoginRequiredMixin, generic.CreateView):
+    model = TipoComponente
+    form_class = TipoComponenteForm
+    template_name = 'gestionale/tipicomponente/tipocomponente_form.html' # Crea questo template
+    success_url = reverse_lazy('tipocomponente_list') # Crea questa URL route

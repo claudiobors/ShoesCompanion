@@ -4,7 +4,7 @@ from .models import Cliente, Modello, Componente, Colore, CoppiaMisura, Ordine
 
 class ClienteTable(tables.Table):
     azioni = tables.TemplateColumn(
-        template_name='gestionale/clienti/cliente_actions.html',
+        template_name='gestionale/clienti/cliente_actions.html', # Assicurati che esista questo template
         orderable=False
     )
 
@@ -16,7 +16,7 @@ class ClienteTable(tables.Table):
 
 class ModelloTable(tables.Table):
     azioni = tables.TemplateColumn(
-        template_name='gestionale/modelli/modello_actions.html',
+        template_name='gestionale/modelli/modello_actions.html', # Assicurati che esista
         orderable=False
     )
 
@@ -28,14 +28,30 @@ class ModelloTable(tables.Table):
 
 class ComponenteTable(tables.Table):
     azioni = tables.TemplateColumn(
-        template_name='gestionale/componenti/componente_actions.html',
+        template_name='gestionale/componenti/componente_actions.html', # Assicurati che esista
         orderable=False
     )
+    # 'nome' è ora 'nome_componente' (ForeignKey a TipoComponente)
+    # Mostriamo il nome del TipoComponente
+    nome_componente = tables.Column(accessor='nome_componente.nome', verbose_name='Tipo Componente')
+    misure_associate = tables.TemplateColumn(
+        template_code="""
+            {% for misura_comp in record.misure_associate.all %}
+                <span class="badge bg-info text-dark">{{ misura_comp.coppia_misura.descrizione_misura }}</span>
+            {% empty %}
+                Nessuna misura specifica
+            {% endfor %}
+        """,
+        verbose_name="Misure Specifiche",
+        orderable=False
+    )
+
 
     class Meta:
         model = Componente
         template_name = "django_tables2/bootstrap4.html"
-        fields = ('nome', 'modello', 'colore')
+        fields = ('nome_componente', 'modello', 'colore', 'misure_associate', 'azioni') # 'azioni' aggiunto alla fine
+        sequence = ('nome_componente', 'modello', 'colore', 'misure_associate', 'azioni')
 
 
 class ColoreTable(tables.Table):
@@ -43,14 +59,17 @@ class ColoreTable(tables.Table):
         template_name='gestionale/colori/colore_actions.html',
         orderable=False
     )
-    colore = tables.TemplateColumn(
-        template_code='<span class="badge" style="background-color: {{ record.valore_hex }}; color: {% if record.valore_hex == "#FFFFFF" %}black{% else %}white{% endif %}">{{ record.nome }}</span>'
+    # Rinominato per evitare conflitto con il campo 'colore' del modello, sebbene qui sia ok.
+    anteprima_colore = tables.TemplateColumn(
+        template_code='<span class="badge" style="background-color: {{ record.valore_hex }}; color: {% if record.valore_hex == "#FFFFFF" or record.valore_hex == "#ffffff" %}black{% else %}white{% endif %}; border: 1px solid #ccc;">{{ record.nome }}</span>',
+        verbose_name="Colore"
     )
 
     class Meta:
         model = Colore
         template_name = "django_tables2/bootstrap4.html"
-        fields = ('nome', 'valore_hex')
+        fields = ('anteprima_colore', 'valore_hex', 'descrizione', 'azioni')
+        sequence = ('anteprima_colore', 'valore_hex', 'descrizione', 'azioni')
 
 
 class CoppiaMisuraTable(tables.Table):
@@ -61,8 +80,10 @@ class CoppiaMisuraTable(tables.Table):
 
     class Meta:
         model = CoppiaMisura
+        # Aggiornato per il nuovo modello CoppiaMisura
         template_name = "django_tables2/bootstrap4.html"
-        fields = ('numero_scarpa', 'larghezza', 'altezza')
+        fields = ('descrizione_misura', 'numero_scarpa_riferimento', 'note', 'azioni')
+        sequence = ('descrizione_misura', 'numero_scarpa_riferimento', 'note', 'azioni')
 
 
 class OrdineTable(tables.Table):
@@ -77,4 +98,5 @@ class OrdineTable(tables.Table):
     class Meta:
         model = Ordine
         template_name = "django_tables2/bootstrap4.html"
-        fields = ('id', 'modello', 'data_ordine', 'stato', 'quantita_totale')
+        fields = ('id', 'modello', 'data_ordine', 'stato', 'quantita_totale', 'azioni')
+        sequence = ('id', 'modello', 'data_ordine', 'stato', 'quantita_totale', 'azioni')
