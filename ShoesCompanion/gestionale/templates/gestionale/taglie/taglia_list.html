@@ -1,49 +1,23 @@
 {% extends 'gestionale/base.html' %}
 {% load django_tables2 %}
 
-{% block title %}Lista Taglie{% endblock %}
+{% block title %}Lista Taglie Disponibili{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Lista Taglie</h2>
+        <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Gestione Taglie</h2>
         <a href="{% url 'taglia_create' %}" class="btn btn-primary">
             <i class="fas fa-plus"></i> Nuova Taglia
         </a>
     </div>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="fas fa-filter"></i> Filtri</h5>
-        </div>
-        <div class="card-body">
-            <form method="get" class="row gx-2 gy-2 align-items-center">
-                {% for field in filter.form %}
-                <div class="col-auto">
-                    <label for="{{ field.id_for_label }}" class="visually-hidden">{{ field.label }}</label>
-                    {{ field }}
-                </div>
-                {% endfor %}
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-info">Cerca</button>
-                    <a href="{% url 'taglia_list' %}" class="btn btn-outline-secondary ms-2">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    {% if table %}
-        <div class="card shadow-sm">
-             <div class="card-body p-0">
-                <div class="table-responsive">
-                    {% render_table table "django_tables2/bootstrap5.html" %}
-                </div>
+    <div class="card shadow-sm">
+         <div class="card-body p-0">
+            <div class="table-responsive">
+                {% render_table table "django_tables2/bootstrap5.html" %}
             </div>
         </div>
-    {% else %}
-        <div class="alert alert-info text-center">
-            Nessuna taglia trovata. <a href="{% url 'taglia_create' %}" class="alert-link">Aggiungi la prima</a>.
-        </div>
-    {% endif %}
+    </div>
 </div>
 {% endblock %}

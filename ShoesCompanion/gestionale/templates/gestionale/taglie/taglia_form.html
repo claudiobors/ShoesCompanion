@@ -7,18 +7,27 @@
 {% block content %}
 <div class="container mt-4">
     <div class="row">
-        <div class="col-lg-8 offset-lg-2">
+        <div class="col-lg-6 offset-lg-3">
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h3 class="mb-0">
                         <i class="fas {% if form.instance.pk %}fa-edit{% else %}fa-plus-circle{% endif %}"></i>
-                        {% if form.instance.pk %}Modifica{% else %}Nuova{% endif %} Taglia
+                        {% if form.instance.pk %}Modifica Taglia{% else %}Nuova Taglia{% endif %}
                     </h3>
                 </div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
-                        {{ form.as_p }}
+                        <div class="mb-3">
+                            <label for="{{ form.numero.id_for_label }}" class="form-label">{{ form.numero.label }}</label>
+                            {{ form.numero }}
+                            {% if form.numero.errors %}<div class="invalid-feedback d-block">{{ form.numero.errors }}</div>{% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label }}</label>
+                            {{ form.note }}
+                            {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
+                        </div>
                         <hr>
                         <div class="d-flex justify-content-between">
                             <a href="{% url 'taglia_list' %}" class="btn btn-outline-secondary">

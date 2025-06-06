@@ -1,90 +1,111 @@
 {% extends 'gestionale/base.html' %}
+{% load static %}
 
 {% block title %}
     {% if form.instance.pk %}Modifica Ordine #{{ form.instance.id }}{% else %}Nuovo Ordine{% endif %}
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .dettaglio-form { padding: 1rem; border-bottom: 1px solid #eee; margin-bottom: 1rem; }
+    .dettaglio-form:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="container mt-4">
-    <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="row">
-            <div class="col-lg-5">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0"><i class="fas fa-file-alt"></i> Dati Ordine</h4>
-                    </div>
-                    <div class="card-body">
-                        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-                        
-                        <div class="mb-3">
-                            <label for="{{ form.modello.id_for_label }}" class="form-label">{{ form.modello.label }}</label>
-                            {{ form.modello }}
-                            {% if form.modello.errors %}<div class="invalid-feedback d-block">{{ form.modello.errors }}</div>{% endif %}
-                        </div>
-                        <div class="mb-3">
-                            <label for="{{ form.data_ordine.id_for_label }}" class="form-label">{{ form.data_ordine.label }}</label>
-                            {{ form.data_ordine }}
-                            {% if form.data_ordine.errors %}<div class="invalid-feedback d-block">{{ form.data_ordine.errors }}</div>{% endif %}
-                        </div>
-                        <div class="mb-3">
-                            <label for="{{ form.stato.id_for_label }}" class="form-label">{{ form.stato.label }}</label>
-                            {{ form.stato }}
-                            {% if form.stato.errors %}<div class="invalid-feedback d-block">{{ form.stato.errors }}</div>{% endif %}
-                        </div>
-                        <div class="mb-3">
-                            <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label }}</label>
-                            {{ form.note }}
-                            {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-7">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0"><i class="fas fa-shoe-prints"></i> Quantità per Taglia</h4>
-                    </div>
-                    <div class="card-body">
-                        {% if quantita_form.non_field_errors %}<div class="alert alert-danger">{{ quantita_form.non_field_errors }}</div>{% endif %}
-                        
-                        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-3">
-                            {% for field in quantita_form %}
-                                <div class="col">
-                                    <label for="{{ field.id_for_label }}" class="form-label fw-bold">{{ field.label }}</label>
-                                    {{ field }}
-                                    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-                                </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">
+                <i class="fas {% if form.instance.pk %}fa-edit{% else %}fa-file-invoice-dollar{% endif %}"></i>
+                {% if form.instance.pk %}Modifica Ordine #{{ form.instance.id }}{% else %}Crea Nuovo Ordine{% endif %}
+            </h3>
         </div>
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
 
-        <hr class="my-4">
-        
-        <div class="d-flex justify-content-between">
-            <a href="{% if form.instance.pk %}{% url 'ordine_detail' form.instance.pk %}{% else %}{% url 'ordine_list' %}{% endif %}" class="btn btn-outline-secondary">
-                <i class="fas fa-times"></i> Annulla
-            </a>
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="fas fa-save"></i> 
-                {% if form.instance.pk %}Salva Modifiche Ordine{% else %}Crea Ordine{% endif %}
-            </button>
+                <fieldset class="border p-3 mb-4">
+                    <legend class="w-auto px-2 h6">Dati Principali</legend>
+                    {% if form.non_field_errors %}<div class="alert alert-danger p-2">{{ form.non_field_errors }}</div>{% endif %}
+                    {{ form.as_p }}
+                </fieldset>
+
+                <fieldset class="border p-3">
+                    <legend class="w-auto px-2 h6">Dettagli Taglie e Quantità</legend>
+                    {{ dettagli_formset.management_form }}
+                    {% if dettagli_formset.non_form_errors %}<div class="alert alert-danger p-2">{{ dettagli_formset.non_form_errors }}</div>{% endif %}
+
+                    <div id="dettagli-formset-container">
+                        {% for form_dettaglio in dettagli_formset %}
+                        <div class="dettaglio-form">
+                            {{ form_dettaglio.id }}
+                            {% if form_dettaglio.non_field_errors %}<div class="alert alert-danger p-2">{{ form_dettaglio.non_field_errors }}</div>{% endif %}
+                            <div class="row align-items-end">
+                                <div class="col-md-5 mb-3">{{ form_dettaglio.taglia.label_tag }} {{ form_dettaglio.taglia }}</div>
+                                <div class="col-md-3 mb-3">{{ form_dettaglio.quantita.label_tag }} {{ form_dettaglio.quantita }}</div>
+                                <div class="col-md-4 mb-3">{% if form_dettaglio.DELETE %}{{ form_dettaglio.DELETE.label_tag }} {{ form_dettaglio.DELETE }}{% endif %}</div>
+                                <div class="col-12">{{ form_dettaglio.note.label_tag }} {{ form_dettaglio.note }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" id="add-dettaglio-form" class="btn btn-outline-success btn-sm mt-2">
+                        <i class="fas fa-plus"></i> Aggiungi Riga
+                    </button>
+                </fieldset>
+
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <a href="{% if form.instance.pk %}{% url 'ordine_detail' form.instance.pk %}{% else %}{% url 'ordine_list' %}{% endif %}" class="btn btn-outline-secondary">Annulla</a>
+                    <button type="submit" class="btn btn-primary">Salva Ordine</button>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
+
+<template id="empty-dettaglio-form-template">
+    <div class="dettaglio-form border-bottom pb-3 mb-3">
+        {{ dettagli_formset.empty_form.id }}
+        <div class="row align-items-end">
+            <div class="col-md-5 mb-3">{{ dettagli_formset.empty_form.taglia.label_tag }} {{ dettagli_formset.empty_form.taglia }}</div>
+            <div class="col-md-3 mb-3">{{ dettagli_formset.empty_form.quantita.label_tag }} {{ dettagli_formset.empty_form.quantita }}</div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-sm btn-outline-danger remove-dettaglio-form">Rimuovi</button></div>
+            <div class="col-12">{{ dettagli_formset.empty_form.note.label_tag }} {{ dettagli_formset.empty_form.note }}</div>
+        </div>
+    </div>
+</template>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Inizializza Select2 per i campi select
-    $('form select:visible:not(.select2-hidden-accessible)').addClass('form-select').select2({
-        theme: 'bootstrap-5',
-        width: '100%'
+    function applyStylesAndPlugins(element) {
+        $(element).find('select').addClass('form-select');
+        $(element).find('input:not([type=checkbox])').addClass('form-control');
+        $(element).find('textarea').addClass('form-control');
+    }
+    applyStylesAndPlugins(document);
+
+    const formsetContainer = document.getElementById('dettagli-formset-container');
+    const addButton = document.getElementById('add-dettaglio-form');
+    const totalFormsInput = document.querySelector('input[name="dettagli-TOTAL_FORMS"]');
+    const template = document.getElementById('empty-dettaglio-form-template');
+
+    addButton.addEventListener('click', function() {
+        let formNum = parseInt(totalFormsInput.value);
+        let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
+        let newDiv = document.createElement('div');
+        newDiv.innerHTML = newFormHtml;
+        formsetContainer.appendChild(newDiv);
+        applyStylesAndPlugins(newDiv);
+        totalFormsInput.value = formNum + 1;
+    });
+
+    $(formsetContainer).on('click', '.remove-dettaglio-form', function() {
+        $(this).closest('.dettaglio-form').parent().remove();
     });
 });
 </script>

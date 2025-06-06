@@ -1,5 +1,4 @@
 {% extends 'gestionale/base.html' %}
-{% load static %}
 
 {% block title %}
     Gestione Misure per {{ componente.nome_componente.nome }}
@@ -10,7 +9,7 @@
     .articolo-form {
         padding: 1rem;
         border: 1px solid #dee2e6;
-        border-radius: .25rem;
+        border-radius: .375rem;
         margin-bottom: 1rem;
         background-color: #f8f9fa;
         position: relative;
@@ -27,9 +26,9 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Gestione Misure</h2>
+            <h2 class="mb-0"><i class="fas fa-ruler-horizontal"></i> Gestione Misure</h2>
             <p class="text-muted">
-                Stai definendo le misure per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
+                Stai definendo altezza e larghezza per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
             </p>
         </div>
     </div>
@@ -38,8 +37,6 @@
         <div class="card-body">
             <form method="post">
                 {% csrf_token %}
-
-                {# Management form del formset: FONDAMENTALE #}
                 {{ formset.management_form }}
 
                 {% if formset.non_form_errors %}
@@ -55,19 +52,23 @@
                                     <label for="{{ form.DELETE.id_for_label }}" class="form-check-label text-danger">Elimina</label>
                                 </div>
                             {% endif %}
+                            {{ form.id }}
                             
-                            {{ form.id }} {# Campo ID nascosto per il formset #}
-                            
-                            <div class="row">
+                            <div class="row align-items-center">
                                 <div class="col-md-4 mb-3">
                                     <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
                                     {{ form.taglia }}
                                     {% if form.taglia.errors %}<div class="invalid-feedback d-block">{{ form.taglia.errors }}</div>{% endif %}
                                 </div>
-                                <div class="col-md-8 mb-3">
-                                    <label for="{{ form.descrizione_misura.id_for_label }}" class="form-label">{{ form.descrizione_misura.label }}</label>
-                                    {{ form.descrizione_misura }}
-                                    {% if form.descrizione_misura.errors %}<div class="invalid-feedback d-block">{{ form.descrizione_misura.errors }}</div>{% endif %}
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.altezza.id_for_label }}" class="form-label">{{ form.altezza.label }} (mm)</label>
+                                    {{ form.altezza }}
+                                    {% if form.altezza.errors %}<div class="invalid-feedback d-block">{{ form.altezza.errors }}</div>{% endif %}
+                                </div>
+                                 <div class="col-md-4 mb-3">
+                                    <label for="{{ form.larghezza.id_for_label }}" class="form-label">{{ form.larghezza.label }} (mm)</label>
+                                    {{ form.larghezza }}
+                                    {% if form.larghezza.errors %}<div class="invalid-feedback d-block">{{ form.larghezza.errors }}</div>{% endif %}
                                 </div>
                             </div>
                         </div>
@@ -102,9 +103,13 @@
                     <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
                     {{ form.taglia }}
                 </div>
-                <div class="col-md-8 mb-3">
-                    <label for="{{ form.descrizione_misura.id_for_label }}" class="form-label">{{ form.descrizione_misura.label }}</label>
-                    {{ form.descrizione_misura }}
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.altezza.id_for_label }}" class="form-label">{{ form.altezza.label }} (mm)</label>
+                    {{ form.altezza }}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.larghezza.id_for_label }}" class="form-label">{{ form.larghezza.label }} (mm)</label>
+                    {{ form.larghezza }}
                 </div>
             </div>
         {% endwith %}
@@ -115,7 +120,6 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Funzione per inizializzare select2 su un dato elemento
     function initializeSelect2(element) {
         $(element).find('select').addClass('form-select').select2({
             theme: 'bootstrap-5',
@@ -123,31 +127,24 @@ $(document).ready(function() {
             width: '100%'
         });
     }
-
-    initializeSelect2(document); // Inizializza i select già presenti
-
+    initializeSelect2(document);
     const formsetContainer = document.getElementById('articoli-formset-container');
     const addButton = document.getElementById('add-articolo-form');
     const totalFormsInput = document.querySelector('input[name="articoli-TOTAL_FORMS"]');
     const template = document.getElementById('empty-articolo-form-template');
-
     if (addButton) {
         addButton.addEventListener('click', function() {
             let formNum = parseInt(totalFormsInput.value);
             let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
-            
             let newDiv = document.createElement('div');
             newDiv.innerHTML = newFormHtml;
             formsetContainer.appendChild(newDiv);
-            
-            initializeSelect2(newDiv); // Inizializza select2 sul nuovo form
-
+            initializeSelect2(newDiv);
             totalFormsInput.value = formNum + 1;
         });
     }
-
     $(formsetContainer).on('click', '.remove-articolo-btn', function() {
-        $(this).closest('.articolo-form').parent().remove();
+        $(this).closest('.articolo-form').remove();
     });
 });
 </script>

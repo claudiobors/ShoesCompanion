@@ -13,17 +13,13 @@
                 <div class="card-body">
                     <p class="lead">Sei sicuro di voler eliminare la Taglia: <strong>{{ object.numero }}</strong>?</p>
                      <div class="alert alert-warning">
-                        <strong>Attenzione!</strong> Se questa taglia è usata in qualche ordine o articolo, non potrai eliminarla (verrà generato un errore). Dovrai prima rimuoverla da tutti gli ordini e da tutte le schede misure dei componenti.
+                        <strong>Attenzione!</strong> Se questa taglia è usata in qualche ordine o scheda misure, non potrai eliminarla (verrà generato un errore). Dovrai prima rimuoverla da tutti gli ordini e da tutte le schede misure dei componenti.
                     </div>
                     <form method="post">
                         {% csrf_token %}
                         <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'taglia_list' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times"></i> Annulla
-                            </a>
-                            <button type="submit" class="btn btn-danger">
-                                <i class="fas fa-trash-alt"></i> Sì, Elimina
-                            </button>
+                            <a href="{% url 'taglia_list' %}" class="btn btn-outline-secondary">Annulla</a>
+                            <button type="submit" class="btn btn-danger">Sì, Elimina</button>
                         </div>
                     </form>
                 </div>

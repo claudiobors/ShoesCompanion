@@ -115,28 +115,25 @@
                                     <td>{{ componente.nome_componente.nome|default:"N/D" }}</td>
                                     <td>
                                         {% if componente.colore %}
-                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; color: {% if componente.colore.valore_hex|lower == '#ffffff' %}black{% else %}white{% endif %}; border: 1px solid #ccc;">
+                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; ...">
                                                 {{ componente.colore.nome|default:"N/D" }}
                                             </span>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
+                                        {% else %}<span class="text-muted">-</span>{% endif %}
                                     </td>
                                     <td>
-                                        {% for misura_comp in componente.misure_associate.all %}
-                                            <span class="badge bg-info text-dark me-1" title="{% if misura_comp.coppia_misura.note %}Nota Misura: {{ misura_comp.coppia_misura.note }}{% endif %}">
-                                                {{ misura_comp.coppia_misura.descrizione_misura|default:"Misura non specificata" }}
-                                                {% if misura_comp.coppia_misura.numero_scarpa_riferimento %}
-                                                    (Rif. {{ misura_comp.coppia_misura.numero_scarpa_riferimento }})
-                                                {% endif %}
-                                            </span>
+                                        {# Mostra le misure esistenti in modo compatto #}
+                                        {% for articolo in componente.articoli.all %}
+                                            <span class="badge bg-secondary">T{{ articolo.taglia }}: H{{ articolo.altezza }}/L{{ articolo.larghezza }}</span>
                                         {% empty %}
-                                            <span class="badge bg-secondary">Nessuna misura specifica</span>
+                                            <span class="text-muted">Nessuna misura definita</span>
                                         {% endfor %}
                                     </td>
-                                    <td>{{ componente.note|truncatewords:5|default:"-" }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
+                                            {# --- PULSANTE AGGIUNTO --- #}
+                                            <a href="{% url 'manage_articoli_componente' componente.pk %}" class="btn btn-outline-success" title="Gestisci Misure">
+                                                <i class="fas fa-ruler-horizontal"></i> Misure
+                                            </a>
                                             <a href="{% url 'componente_update' componente.pk %}" class="btn btn-outline-primary" title="Modifica Componente">
                                                 <i class="fas fa-edit"></i>
                                             </a>

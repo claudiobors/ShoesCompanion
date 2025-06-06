@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Sum
 from django.forms import inlineformset_factory
+from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -14,7 +15,7 @@ from .filters import (ClienteFilter, ColoreFilter, ComponenteFilter,
                     ModelloFilter, OrdineFilter, TagliaFilter,
                     TipoComponenteFilter)
 from .forms import (ArticoloForm, ClienteForm, ColoreForm, ComponenteForm,
-                  DettaglioOrdineForm, ModelloForm, OrdineMainForm,
+                  DettaglioOrdineForm, ModelloForm, OrdineMainForm,DettaglioOrdineFormSet,
                   QuantitaPerTagliaForm, TagliaForm, TipoComponenteForm)
 from .models import (Articolo, Cliente, Colore, Componente, DettaglioOrdine,
                    Modello, Ordine, Taglia, TipoComponente)
@@ -167,7 +168,17 @@ class ComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
 @login_required
 def manage_articoli_componente(request, componente_id):
     componente = get_object_or_404(Componente.objects.select_related('modello'), pk=componente_id)
-    ArticoloInlineFormSet = inlineformset_factory(Componente, Articolo, form=ArticoloForm, fields=('taglia', 'descrizione_misura'), extra=1, can_delete=True)
+    
+    # Use the correct fields: 'altezza' and 'larghezza'
+    ArticoloInlineFormSet = inlineformset_factory(
+        Componente, 
+        Articolo, 
+        form=ArticoloForm, 
+        fields=('taglia', 'altezza', 'larghezza'),  # <-- CORRECTED LINE
+        extra=1, 
+        can_delete=True
+    )
+
     if request.method == 'POST':
         formset = ArticoloInlineFormSet(request.POST, instance=componente, prefix='articoli')
         if formset.is_valid():
@@ -175,7 +186,9 @@ def manage_articoli_componente(request, componente_id):
             return redirect('modello_detail', pk=componente.modello.pk)
     else:
         formset = ArticoloInlineFormSet(instance=componente, prefix='articoli')
-    return render(request, 'gestionale/componenti/manage_articoli.html', {'formset': formset, 'componente': componente})
+        
+    context = {'formset': formset, 'componente': componente}
+    return render(request, 'gestionale/componenti/manage_articoli.html', context)
 
 
 # --- Viste Ordine ---
@@ -202,25 +215,44 @@ class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
     model = Ordine
     form_class = OrdineMainForm
     template_name = 'gestionale/ordini/ordine_form.html'
+
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
         if self.request.POST:
-            data['quantita_form'] = QuantitaPerTagliaForm(self.request.POST)
+            data['dettagli_formset'] = DettaglioOrdineFormSet(self.request.POST, prefix='dettagli')
         else:
-            data['quantita_form'] = QuantitaPerTagliaForm()
+            data['dettagli_formset'] = DettaglioOrdineFormSet(prefix='dettagli')
         return data
+
     def form_valid(self, form):
         context = self.get_context_data()
-        quantita_form = context['quantita_form']
-        if quantita_form.is_valid():
-            form.instance.created_by = self.request.user
-            self.object = form.save()
-            for taglia_id, quantita in quantita_form.get_dettagli_data():
-                if quantita > 0:
-                    DettaglioOrdine.objects.create(ordine=self.object, taglia_id=taglia_id, quantita=quantita)
-            return redirect(self.get_success_url())
-        else:
+        dettagli_formset = context['dettagli_formset']
+
+        if not dettagli_formset.is_valid():
             return self.render_to_response(self.get_context_data(form=form))
+
+        # --- Logica Personalizzata per Sommare le Quantità ---
+        taglie_aggregate = {}
+        for dettaglio_form in dettagli_formset:
+            if dettaglio_form.is_valid() and not dettaglio_form.cleaned_data.get('DELETE', False):
+                taglia = dettaglio_form.cleaned_data.get('taglia')
+                quantita = dettaglio_form.cleaned_data.get('quantita')
+                if taglia and quantita:
+                    taglie_aggregate[taglia] = taglie_aggregate.get(taglia, 0) + quantita
+        
+        if not taglie_aggregate:
+            # Se non è stata inserita nessuna riga valida, mostra un errore
+            form.add_error(None, "È necessario inserire almeno una riga di dettaglio con taglia e quantità.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        for taglia, quantita_totale in taglie_aggregate.items():
+            DettaglioOrdine.objects.create(ordine=self.object, taglia=taglia, quantita=quantita_totale)
+            
+        return redirect(self.get_success_url())
+
     def get_success_url(self):
         return reverse('ordine_detail', kwargs={'pk': self.object.pk})
 
@@ -228,27 +260,48 @@ class OrdineUpdateView(LoginRequiredMixin, generic.UpdateView):
     model = Ordine
     form_class = OrdineMainForm
     template_name = 'gestionale/ordini/ordine_form.html'
+
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
-        dettagli_esistenti = self.object.dettagli.all()
         if self.request.POST:
-            data['quantita_form'] = QuantitaPerTagliaForm(self.request.POST, instance=dettagli_esistenti)
+            data['dettagli_formset'] = DettaglioOrdineFormSet(self.request.POST, instance=self.object, prefix='dettagli')
         else:
-            data['quantita_form'] = QuantitaPerTagliaForm(instance=dettagli_esistenti)
+            data['dettagli_formset'] = DettaglioOrdineFormSet(instance=self.object, prefix='dettagli')
         return data
+
     def form_valid(self, form):
         context = self.get_context_data()
-        quantita_form = context['quantita_form']
-        if quantita_form.is_valid():
-            self.object = form.save()
-            for taglia_id, quantita in quantita_form.get_dettagli_data():
-                if quantita > 0:
-                    DettaglioOrdine.objects.update_or_create(ordine=self.object, taglia_id=taglia_id, defaults={'quantita': quantita})
-                else:
-                    DettaglioOrdine.objects.filter(ordine=self.object, taglia_id=taglia_id).delete()
-            return redirect(self.get_success_url())
-        else:
+        dettagli_formset = context['dettagli_formset']
+
+        if not dettagli_formset.is_valid():
             return self.render_to_response(self.get_context_data(form=form))
+
+        # --- Logica Personalizzata per Sommare e Aggiornare ---
+        taglie_aggregate = {}
+        for dettaglio_form in dettagli_formset:
+            if dettaglio_form.is_valid() and not dettaglio_form.cleaned_data.get('DELETE', False):
+                taglia = dettaglio_form.cleaned_data.get('taglia')
+                quantita = dettaglio_form.cleaned_data.get('quantita')
+                if taglia and quantita:
+                    taglie_aggregate[taglia] = taglie_aggregate.get(taglia, 0) + quantita
+
+        self.object = form.save()
+
+        # Sincronizza il database con i dati aggregati
+        taglie_da_mantenere = []
+        for taglia, quantita_totale in taglie_aggregate.items():
+            dettaglio, created = DettaglioOrdine.objects.update_or_create(
+                ordine=self.object,
+                taglia=taglia,
+                defaults={'quantita': quantita_totale}
+            )
+            taglie_da_mantenere.append(taglia.pk)
+
+        # Elimina i dettagli per le taglie non più presenti nel form
+        self.object.dettagli.exclude(taglia__pk__in=taglie_da_mantenere).delete()
+
+        return redirect(self.get_success_url())
+
     def get_success_url(self):
         return reverse('ordine_detail', kwargs={'pk': self.object.pk})
 
@@ -277,24 +330,48 @@ def ordine_annulla(request, pk):
 
 
 # --- Viste Dettaglio Ordine ---
+# In gestionale/views.py
+
+# --- Viste Dettaglio Ordine ---
 class DettaglioOrdineCreateView(LoginRequiredMixin, generic.CreateView):
     model = DettaglioOrdine
     form_class = DettaglioOrdineForm
     template_name = 'gestionale/ordini/dettaglioordine_form.html'
+
     def get_initial(self):
         initial = super().get_initial()
         if 'ordine_id' in self.kwargs:
             initial['ordine'] = get_object_or_404(Ordine, pk=self.kwargs['ordine_id'])
         return initial
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if 'ordine_id' in self.kwargs:
             context['ordine'] = get_object_or_404(Ordine, pk=self.kwargs['ordine_id'])
         return context
+
     def form_valid(self, form):
-        if 'ordine' in self.get_context_data():
-            form.instance.ordine = self.get_context_data()['ordine']
-        return super().form_valid(form)
+        # Assegna l'ordine al dettaglio
+        ordine = get_object_or_404(Ordine, pk=self.kwargs.get('ordine_id'))
+        form.instance.ordine = ordine
+        
+        # --- LOGICA DI CONTROLLO DUPLICATI ---
+        taglia = form.cleaned_data.get('taglia')
+        
+        # Controlla se un dettaglio per questa taglia esiste già per questo ordine
+        dettaglio_esistente = DettaglioOrdine.objects.filter(ordine=ordine, taglia=taglia).first()
+        
+        if dettaglio_esistente:
+            # Se esiste, aggiorna la quantità sommando quella nuova
+            dettaglio_esistente.quantita += form.cleaned_data.get('quantita', 0)
+            dettaglio_esistente.save()
+            messages.success(self.request, f"Quantità per la taglia {taglia.numero} aggiornata con successo.")
+            return redirect('ordine_detail', pk=ordine.pk)
+        else:
+            # Se non esiste, crea un nuovo dettaglio (comportamento standard)
+            messages.success(self.request, "Nuovo dettaglio aggiunto con successo.")
+            return super().form_valid(form)
+
     def get_success_url(self):
         return reverse('ordine_detail', kwargs={'pk': self.object.ordine.pk})
 
@@ -302,12 +379,20 @@ class DettaglioOrdineUpdateView(LoginRequiredMixin, generic.UpdateView):
     model = DettaglioOrdine
     form_class = DettaglioOrdineForm
     template_name = 'gestionale/ordini/dettaglioordine_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # CORREZIONE: Aggiunge l'ordine al contesto per usarlo nel template
+        context['ordine'] = self.object.ordine
+        return context
+
     def get_success_url(self):
         return reverse('ordine_detail', kwargs={'pk': self.object.ordine.pk})
 
 class DettaglioOrdineDeleteView(LoginRequiredMixin, generic.DeleteView):
     model = DettaglioOrdine
     template_name = 'gestionale/ordini/dettaglioordine_confirm_delete.html'
+    
     def get_success_url(self):
         return reverse('ordine_detail', kwargs={'pk': self.object.ordine.pk})
 
@@ -421,68 +506,223 @@ class TipoComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
 # ==============================================================================
 # VISTE REPORT E PDF
 # ==============================================================================
+
+# Import per ReportLab / PDF
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+
 @login_required
 def report_dashboard(request):
-    ordini_per_stato = Ordine.objects.values('stato').annotate(count=Count('id'), total=Sum('quantita_totale')).order_by('stato')
+    """
+    Mostra una dashboard con analisi avanzate, incluso il calcolo
+    totale dei materiali necessari per gli ordini attivi.
+    """
+    
+    # --- 1. Calcolo Aggregato dei Materiali da Ordinare ---
+    ordini_attivi = Ordine.objects.exclude(stato__in=['COMPLETATO', 'ANNULLATO'])
+    
+    materiali_da_ordinare = {}
+
+    for ordine in ordini_attivi.prefetch_related('dettagli__taglia', 'modello__componenti__nome_componente', 'modello__componenti__colore'):
+        materiali_per_ordine = ordine.get_materiali_necessari()
+        
+        for key, misure in materiali_per_ordine.items():
+            master_entry = materiali_da_ordinare.setdefault(key, {'tot_altezza': 0, 'tot_larghezza': 0, 'unita_prodotte': 0})
+            master_entry['tot_altezza'] += misure.get('tot_altezza', 0)
+            master_entry['tot_larghezza'] += misure.get('tot_larghezza', 0)
+            master_entry['unita_prodotte'] += misure.get('unita_prodotte', 0)
+
+    # --- 2. Statistiche Ordini per Stato ---
+    ordini_per_stato_qs = Ordine.objects.values('stato').annotate(
+        count=Count('id'),
+        total_pairs=Sum('dettagli__quantita') 
+    ).order_by('stato')
+    ordini_per_stato_list = list(ordini_per_stato_qs)
+    
+    # --- 3. Altre Statistiche ---
     modelli_popolari = Modello.objects.annotate(num_ordini=Count('ordini')).order_by('-num_ordini')[:5]
     clienti_attivi = Cliente.objects.annotate(num_ordini=Count('modelli__ordini')).order_by('-num_ordini')[:5]
-    context = {'ordini_per_stato': ordini_per_stato, 'modelli_popolari': modelli_popolari, 'clienti_attivi': clienti_attivi}
+
+    context = {
+        'materiali_da_ordinare': materiali_da_ordinare,
+        'ordini_per_stato': ordini_per_stato_list,
+        'modelli_popolari': modelli_popolari,
+        'clienti_attivi': clienti_attivi,
+        'stato_choices': dict(Ordine.STATO_ORDINE_CHOICES)
+    }
     return render(request, 'gestionale/report/dashboard.html', context)
+
+def _pdf_base_elements(title_text):
+    """Funzione helper per creare stili e titolo comuni per i PDF."""
+    styles = getSampleStyleSheet()
+    style_title = ParagraphStyle(name='Title', fontSize=20, alignment=TA_CENTER, spaceBottom=20, fontName='Helvetica-Bold')
+    style_heading = ParagraphStyle(name='Heading2', fontSize=14, fontName='Helvetica-Bold', spaceBefore=12, spaceAfter=6)
+    
+    elements = [Paragraph(title_text, style_title)]
+    return elements, styles
 
 @login_required
 def bolla_ordine_pdf(request, pk):
     ordine = get_object_or_404(Ordine, pk=pk)
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    elements, styles = _pdf_base_elements("Bolla d'Ordine")
+    
+    # Dati Ordine
+    data_ordine = [
+        [Paragraph("<b>Ordine N:</b>", styles['Normal']), Paragraph(f"#{ordine.id}", styles['Normal'])],
+        [Paragraph("<b>Data Ordine:</b>", styles['Normal']), Paragraph(ordine.data_ordine.strftime('%d/%m/%Y'), styles['Normal'])],
+        [Paragraph("<b>Cliente:</b>", styles['Normal']), Paragraph(ordine.modello.cliente.nome, styles['Normal'])],
+        [Paragraph("<b>Modello:</b>", styles['Normal']), Paragraph(ordine.modello.nome, styles['Normal'])],
+    ]
+    table_info = Table(data_ordine, colWidths=[3*cm, None])
+    table_info.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(table_info)
+    elements.append(Spacer(1, 1*cm)) # Aggiunge spazio verticale
+
+    # Dettagli Taglie
+    elements.append(Paragraph("Dettagli Quantità per Taglia", styles['h2']))
+    
+    data_dettagli = [["Taglia", "Quantità", "Note"]]
+    for dettaglio in ordine.dettagli.all().order_by('taglia__numero'):
+        data_dettagli.append([str(dettaglio.taglia), str(dettaglio.quantita), dettaglio.note or ''])
+    
+    data_dettagli.append(["", "", ""]) # Riga vuota di spaziatura
+    data_dettagli.append([Paragraph("<b>TOTALE PAIA</b>", styles['Normal']), Paragraph(f"<b>{ordine.quantita_totale}</b>", styles['Normal']), ""])
+    
+    table_dettagli = Table(data_dettagli, colWidths=[4*cm, 4*cm, 7*cm])
+    table_dettagli.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('ALIGN', (1,1), (1,-1), 'CENTER'),
+        ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'),
+        ('LINEABOVE', (0,-1), (-1,-1), 1, colors.black),
+        ('GRID', (0,0), (-1,-2), 1, colors.black),
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+    ]))
+    elements.append(table_dettagli)
+    
+    doc.build(elements)
+    
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="bolla_ordine_{pk}.pdf"'
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer)
-    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "BOLLA D'ORDINE")
-    p.setFont("Helvetica", 12); p.drawString(100, 780, f"Ordine n. {ordine.id}"); p.drawString(100, 760, f"Cliente: {ordine.modello.cliente.nome}"); p.drawString(100, 740, f"Modello: {ordine.modello.nome}"); p.drawString(100, 720, f"Data: {ordine.data_ordine.strftime('%d/%m/%Y')}")
-    p.setFont("Helvetica-Bold", 12); p.drawString(100, 690, "Dettagli Taglie:"); p.drawString(100, 670, "Taglia"); p.drawString(200, 670, "Quantità")
-    y = 650
-    p.setFont("Helvetica", 10)
-    for dettaglio in ordine.dettagli.all().order_by('taglia__numero'):
-        p.drawString(100, y, str(dettaglio.taglia)); p.drawString(200, y, str(dettaglio.quantita)); y -= 20
-    p.setFont("Helvetica-Bold", 12); p.drawString(100, y-30, f"TOTALE SCARPE: {ordine.quantita_totale}")
-    p.showPage(); p.save()
-    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+    response.write(buffer.getvalue())
+    buffer.close()
     return response
 
 @login_required
 def scheda_materiali_pdf(request, pk):
     ordine = get_object_or_404(Ordine, pk=pk)
     materiali = ordine.get_materiali_necessari()
-    response = HttpResponse(content_type='application/pdf'); response['Content-Disposition'] = f'attachment; filename="scheda_materiali_{pk}.pdf"'
-    buffer = BytesIO(); p = canvas.Canvas(buffer)
-    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "SCHEDA MATERIALI NECESSARI")
-    p.setFont("Helvetica", 12); p.drawString(100, 780, f"Ordine n. {ordine.id}"); p.drawString(100, 760, f"Cliente: {ordine.modello.cliente.nome}"); p.drawString(100, 740, f"Modello: {ordine.modello.nome}"); p.drawString(100, 720, f"Data: {ordine.data_ordine.strftime('%d/%m/%Y')}")
-    p.setFont("Helvetica-Bold", 12); p.drawString(100, 690, "Materiali Necessari:"); p.drawString(100, 670, "Componente"); p.drawString(250, 670, "Colore"); p.drawString(400, 670, "Quantità")
-    y = 650
-    p.setFont("Helvetica", 10)
-    for (nome_componente, colore), quantita in materiali.items():
-        p.drawString(100, y, nome_componente); p.drawString(250, y, str(colore) if colore else "-"); p.drawString(400, y, str(quantita)); y -= 20
-    p.showPage(); p.save()
-    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    elements, styles = _pdf_base_elements("Scheda Materiali Necessari")
+    
+    elements.append(Paragraph(f"<b>Ordine:</b> #{ordine.id} - <b>Modello:</b> {ordine.modello.nome}", styles['Normal']))
+    elements.append(Spacer(1, 1*cm))
+
+    # Tabella Materiali
+    data_materiali = [["Componente", "Colore", "Unità", "Altezza Tot. (mm)", "Larghezza Tot. (mm)"]]
+    
+    for key, misure in materiali.items():
+        nome_componente, colore = key
+        data_materiali.append([
+            Paragraph(nome_componente, styles['BodyText']),
+            Paragraph(colore.nome if colore else "-", styles['BodyText']),
+            misure['unita_prodotte'],
+            f"{misure['tot_altezza']:.2f}",
+            f"{misure['tot_larghezza']:.2f}",
+        ])
+        
+    table_materiali = Table(data_materiali)
+    table_materiali.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.royalblue),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 12),
+        ('TOPPADDING', (0,0), (-1,0), 12),
+        ('BACKGROUND', (0,1), (-1,-1), colors.beige),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+    ]))
+    elements.append(table_materiali)
+    
+    doc.build(elements)
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="scheda_materiali_{pk}.pdf"'
+    response.write(buffer.getvalue())
+    buffer.close()
     return response
 
 @login_required
 def scheda_modello_pdf(request, pk):
     modello = get_object_or_404(Modello, pk=pk)
-    response = HttpResponse(content_type='application/pdf'); response['Content-Disposition'] = f'attachment; filename="scheda_modello_{pk}.pdf"'
-    buffer = BytesIO(); p = canvas.Canvas(buffer)
-    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "SCHEDA MODELLO"); p.setFont("Helvetica", 12); p.drawString(100, 780, f"Modello: {modello.nome}"); p.drawString(100, 760, f"Cliente: {modello.cliente.nome}"); p.drawString(100, 740, f"Tipo: {modello.get_tipo_display()}")
-    p.setFont("Helvetica-Bold", 12); p.drawString(100, 710, "Componenti e Misure per Taglia:"); p.drawString(100, 690, "Tipo"); p.drawString(250, 690, "Colore")
-    y = 670
-    p.setFont("Helvetica-Bold", 10)
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    elements, styles = _pdf_base_elements("Scheda Tecnica Modello")
+    
+    # Dati Modello e Foto
+    info_data = [
+        [
+            Paragraph(f"<b>Modello:</b> {modello.nome}<br/>"
+                      f"<b>Cliente:</b> {modello.cliente.nome}<br/>"
+                      f"<b>Tipo:</b> {modello.get_tipo_display()}", styles['Normal']),
+            Image(modello.foto.path, width=4*cm, height=4*cm) if modello.foto else Paragraph("Nessuna Foto", styles['Italic'])
+        ]
+    ]
+    info_table = Table(info_data, colWidths=[10*cm, 5*cm])
+    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 1*cm))
+    
+    # Componenti e Misure
+    elements.append(Paragraph("Componenti e Misure per Taglia", styles['h2']))
+    
     for componente in modello.componenti.all():
-        p.drawString(100, y, componente.nome_componente.nome); p.drawString(250, y, str(componente.colore) if componente.colore else "-"); y -= 15
-        p.setFont("Helvetica", 9)
-        for articolo in componente.articoli.all().order_by('taglia__numero'):
-            p.drawString(120, y, f"- Taglia {articolo.taglia}: {articolo.descrizione_misura or 'N/D'}")
-            y -= 12
-        y -= 5
+        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Paragraph(f"<b>Componente:</b> {componente.nome_componente.nome} - <b>Colore:</b> {componente.colore or '-'}", styles['h3']))
+        
+        articoli = componente.articoli.all().order_by('taglia__numero')
+        if articoli:
+            data_articoli = [["Taglia", "Altezza (mm)", "Larghezza (mm)"]]
+            for articolo in articoli:
+                data_articoli.append([str(articolo.taglia), f"{articolo.altezza:.2f}", f"{articolo.larghezza:.2f}"])
+            
+            table_articoli = Table(data_articoli, colWidths=[4*cm, 4*cm, 4*cm])
+            table_articoli.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.darkgrey),
+                ('ALIGN', (1,1), (-1,-1), 'RIGHT'),
+            ]))
+            elements.append(table_articoli)
+        else:
+            elements.append(Paragraph("Nessuna misura specifica definita per questo componente.", styles['Italic']))
+
     if modello.note:
-        p.setFont("Helvetica-Bold", 12); p.drawString(100, y-20, "Note Modello:"); p.setFont("Helvetica", 10); p.drawString(100, y-35, modello.note)
-    p.showPage(); p.save()
-    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+        elements.append(Spacer(1, 1*cm))
+        elements.append(Paragraph("Note sul Modello", styles['h2']))
+        elements.append(Paragraph(modello.note.replace('\n', '<br/>'), styles['BodyText']))
+        
+    doc.build(elements)
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="scheda_modello_{pk}.pdf"'
+    response.write(buffer.getvalue())
+    buffer.close()
     return response
