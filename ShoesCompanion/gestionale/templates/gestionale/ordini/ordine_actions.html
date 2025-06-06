@@ -1,0 +1,29 @@
+{% comment %} File: gestionale/templates/gestionale/ordini/ordine_actions.html {% endcomment %}
+<div class="btn-group btn-group-sm" role="group" aria-label="Azioni Ordine">
+
+    {# Botão para ver os Detalhes (sempre visível) #}
+    <a href="{% url 'ordine_detail' record.pk %}" class="btn btn-outline-info" title="Dettagli Ordine">
+        <i class="fas fa-eye"></i>
+    </a>
+
+    {# Botão Modificar (agora sempre visível) #}
+    <a href="{% url 'ordine_update' record.pk %}" class="btn btn-outline-primary" title="Modifica Ordine">
+        <i class="fas fa-edit"></i>
+    </a>
+
+    {# Botão Confirmar (agora sempre visível) #}
+    <a href="{% url 'ordine_conferma' record.pk %}" class="btn btn-outline-success" title="Conferma Ordine" onclick="return confirm('Sei sicuro di voler confermare questo ordine? L\'azione non potrà essere annullata facilmente.');">
+        <i class="fas fa-check"></i>
+    </a>
+
+    {# Botão Anular (agora sempre visível) #}
+    <a href="{% url 'ordine_annulla' record.pk %}" class="btn btn-outline-warning" title="Annulla Ordine" onclick="return confirm('Sei sicuro di voler annullare questo ordine?');">
+        <i class="fas fa-times-circle"></i>
+    </a>
+
+    {# Botão Excluir (agora sempre visível) #}
+    <a href="{% url 'ordine_delete' record.pk %}" class="btn btn-outline-danger" title="Elimina Ordine" onclick="return confirm('Sei sicuro di voler eliminare definitivamente questo ordine? Questa azione è irreversibile.');">
+        <i class="fas fa-trash-alt"></i>
+    </a>
+
+</div>

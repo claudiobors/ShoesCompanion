@@ -1,0 +1,41 @@
+{% extends 'gestionale/base.html' %}
+{% load static %}
+
+{% block title %}Conferma Eliminazione Dettaglio Ordine{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 offset-lg-2">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Conferma Eliminazione Dettaglio</h3>
+                </div>
+                <div class="card-body">
+                    <p class="lead">Sei sicuro di voler eliminare questo dettaglio dall'ordine #{{ dettaglioordine.ordine.id }}?</p>
+                    <ul class="list-group mb-3">
+                        <li class="list-group-item"><strong>Taglia/Misura:</strong> {{ dettaglioordine.coppia_misura_scarpa.descrizione_misura|default:"N/D" }}</li>
+                        <li class="list-group-item"><strong>Quantità:</strong> {{ dettaglioordine.quantita }}</li>
+                        {% if dettaglioordine.note %}
+                        <li class="list-group-item"><strong>Note:</strong> {{ dettaglioordine.note }}</li>
+                        {% endif %}
+                    </ul>
+                    <p>Questa azione è <strong>irreversibile</strong>.</p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'ordine_detail' dettaglioordine.ordine.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Annulla e Torna all'Ordine
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash-alt"></i> Sì, Elimina Dettaglio
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
