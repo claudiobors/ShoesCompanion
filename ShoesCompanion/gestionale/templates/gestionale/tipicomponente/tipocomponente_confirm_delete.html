@@ -1,6 +1,6 @@
 {% extends 'gestionale/base.html' %}
 
-{% block title %}Conferma Eliminazione Colore{% endblock %}
+{% block title %}Conferma Eliminazione{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -11,14 +11,14 @@
                     <h3 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Conferma Eliminazione</h3>
                 </div>
                 <div class="card-body">
-                    <p class="lead">Sei sicuro di voler eliminare il colore: <strong>{{ object.nome }}</strong>?</p>
-                     <div class="alert alert-warning">
-                        <strong>Attenzione!</strong> Se questo colore è usato da qualche componente, l'associazione verrà rimossa (il campo colore del componente diventerà nullo), ma il componente non verrà eliminato.
+                    <p class="lead">Sei sicuro di voler eliminare il Tipo Componente: <strong>{{ object.nome }}</strong>?</p>
+                    <div class="alert alert-warning">
+                        <strong>Attenzione!</strong> Se questo tipo è usato da qualche componente, non potrai eliminarlo (verrà generato un errore `ProtectedError`). Dovrai prima rimuovere l'associazione da tutti i componenti.
                     </div>
                     <form method="post">
                         {% csrf_token %}
                         <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'colore_list' %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'tipocomponente_list' %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-times"></i> Annulla
                             </a>
                             <button type="submit" class="btn btn-danger">

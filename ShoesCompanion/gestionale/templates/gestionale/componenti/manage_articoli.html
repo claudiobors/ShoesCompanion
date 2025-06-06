@@ -1,0 +1,154 @@
+{% extends 'gestionale/base.html' %}
+{% load static %}
+
+{% block title %}
+    Gestione Misure per {{ componente.nome_componente.nome }}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .articolo-form {
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: .25rem;
+        margin-bottom: 1rem;
+        background-color: #f8f9fa;
+        position: relative;
+    }
+    .remove-articolo-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Gestione Misure</h2>
+            <p class="text-muted">
+                Stai definendo le misure per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
+            </p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                {# Management form del formset: FONDAMENTALE #}
+                {{ formset.management_form }}
+
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+                {% endif %}
+
+                <div id="articoli-formset-container">
+                    {% for form in formset %}
+                        <div class="articolo-form">
+                            {% if form.instance.pk and formset.can_delete %}
+                                <div class="form-check" style="position: absolute; top: 1rem; right: 1rem;">
+                                    {{ form.DELETE }}
+                                    <label for="{{ form.DELETE.id_for_label }}" class="form-check-label text-danger">Elimina</label>
+                                </div>
+                            {% endif %}
+                            
+                            {{ form.id }} {# Campo ID nascosto per il formset #}
+                            
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
+                                    {{ form.taglia }}
+                                    {% if form.taglia.errors %}<div class="invalid-feedback d-block">{{ form.taglia.errors }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-8 mb-3">
+                                    <label for="{{ form.descrizione_misura.id_for_label }}" class="form-label">{{ form.descrizione_misura.label }}</label>
+                                    {{ form.descrizione_misura }}
+                                    {% if form.descrizione_misura.errors %}<div class="invalid-feedback d-block">{{ form.descrizione_misura.errors }}</div>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <button type="button" id="add-articolo-form" class="btn btn-outline-success btn-sm mt-2 mb-3">
+                    <i class="fas fa-plus"></i> Aggiungi Riga Taglia/Misura
+                </button>
+                
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'modello_detail' componente.modello.pk %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-check"></i> Fatto, torna al Modello
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salva Misure
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<template id="empty-articolo-form-template">
+    <div class="articolo-form">
+        {% with formset.empty_form as form %}
+            <button type="button" class="btn-close remove-articolo-btn" aria-label="Rimuovi"></button>
+            {{ form.id }}
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
+                    {{ form.taglia }}
+                </div>
+                <div class="col-md-8 mb-3">
+                    <label for="{{ form.descrizione_misura.id_for_label }}" class="form-label">{{ form.descrizione_misura.label }}</label>
+                    {{ form.descrizione_misura }}
+                </div>
+            </div>
+        {% endwith %}
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Funzione per inizializzare select2 su un dato elemento
+    function initializeSelect2(element) {
+        $(element).find('select').addClass('form-select').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Seleziona una taglia...',
+            width: '100%'
+        });
+    }
+
+    initializeSelect2(document); // Inizializza i select già presenti
+
+    const formsetContainer = document.getElementById('articoli-formset-container');
+    const addButton = document.getElementById('add-articolo-form');
+    const totalFormsInput = document.querySelector('input[name="articoli-TOTAL_FORMS"]');
+    const template = document.getElementById('empty-articolo-form-template');
+
+    if (addButton) {
+        addButton.addEventListener('click', function() {
+            let formNum = parseInt(totalFormsInput.value);
+            let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
+            
+            let newDiv = document.createElement('div');
+            newDiv.innerHTML = newFormHtml;
+            formsetContainer.appendChild(newDiv);
+            
+            initializeSelect2(newDiv); // Inizializza select2 sul nuovo form
+
+            totalFormsInput.value = formNum + 1;
+        });
+    }
+
+    $(formsetContainer).on('click', '.remove-articolo-btn', function() {
+        $(this).closest('.articolo-form').parent().remove();
+    });
+});
+</script>
+{% endblock %}

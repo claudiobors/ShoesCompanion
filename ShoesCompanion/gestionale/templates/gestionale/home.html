@@ -8,7 +8,7 @@
         transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
         border-left-width: 5px;
         border-left-style: solid;
-        border-radius: .375rem; /* Bootstrap 5 border radius */
+        border-radius: .375rem;
     }
     .stat-card:hover {
         transform: translateY(-5px);
@@ -18,30 +18,10 @@
     .stat-card.success { border-left-color: var(--bs-success); }
     .stat-card.warning { border-left-color: var(--bs-warning); }
     .stat-card.danger { border-left-color: var(--bs-danger); }
-    .stat-card.info { border-left-color: var(--bs-info); } /* Nuovo colore per Tipi Componente */
+    .stat-card.info { border-left-color: var(--bs-info); }
 
-    .recent-orders {
-        max-height: 450px; /* Aumentato leggermente */
-        overflow-y: auto;
-    }
-    .quick-links .btn {
-        margin: 5px 0; /* Margine solo sopra/sotto per allineamento migliore in col-6 */
-        width: 100%; /* Occupa tutta la larghezza della colonna */
-        display: flex; /* Per allineare icona e testo */
-        align-items: center;
-        justify-content: center;
-        padding-top: 0.75rem;
-        padding-bottom: 0.75rem;
-    }
-    .quick-links .btn i {
-        margin-right: 8px; /* Spazio tra icona e testo */
-    }
-    .table-hover tbody tr:hover {
-        background-color: #f1f1f1; /* Colore hover più evidente */
-        cursor: pointer;
-    }
-    .card-header h3 {
-        font-size: 1.25rem; /* Dimensione titolo card */
+    .quick-links .list-group-item i {
+        width: 25px; /* Allinea le icone */
     }
 </style>
 {% endblock %}
@@ -55,89 +35,60 @@
         </a>
     </div>
 
-    <div class="row mb-4 g-3"> {# Aggiunto g-3 per gutters #}
+    <div class="row mb-4 g-3">
         <div class="col-xl-3 col-md-6 mb-3">
             <div class="card stat-card primary h-100">
+                <a href="{% url 'cliente_list' %}" class="stretched-link text-decoration-none text-dark" aria-label="Vedi lista clienti"></a>
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h5 class="card-title text-muted fw-light">Clienti Registrati</h5>
+                            <h5 class="card-title text-muted fw-light">Clienti</h5>
                             <h2 class="mb-0 display-5">{{ clienti_count }}</h2>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-users fa-3x text-primary opacity-75"></i>
-                        </div>
+                        <div class="align-self-center"><i class="fas fa-users fa-3x text-primary opacity-75"></i></div>
                     </div>
-                    <a href="{% url 'cliente_list' %}" class="stretched-link" aria-label="Vedi lista clienti"></a>
                 </div>
             </div>
         </div>
-
         <div class="col-xl-3 col-md-6 mb-3">
             <div class="card stat-card success h-100">
+                <a href="{% url 'modello_list' %}" class="stretched-link text-decoration-none text-dark" aria-label="Vedi lista modelli"></a>
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h5 class="card-title text-muted fw-light">Modelli Creati</h5>
+                            <h5 class="card-title text-muted fw-light">Modelli</h5>
                             <h2 class="mb-0 display-5">{{ modelli_count }}</h2>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-shoe-prints fa-3x text-success opacity-75"></i>
-                        </div>
+                        <div class="align-self-center"><i class="fas fa-shoe-prints fa-3x text-success opacity-75"></i></div>
                     </div>
-                    <a href="{% url 'modello_list' %}" class="stretched-link" aria-label="Vedi lista modelli"></a>
                 </div>
             </div>
         </div>
-        
-        {# NUOVA CARD PER TIPI COMPONENTE #}
         <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card stat-card info h-100"> {# Usato colore info #}
+            <div class="card stat-card info h-100">
+                <a href="{% url 'tipocomponente_list' %}" class="stretched-link text-decoration-none text-dark" aria-label="Vedi lista tipi componente"></a>
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h5 class="card-title text-muted fw-light">Tipi Componente</h5>
                             <h2 class="mb-0 display-5">{{ tipi_componente_count }}</h2>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-puzzle-piece fa-3x text-info opacity-75"></i> {# Icona diversa #}
-                        </div>
+                        <div class="align-self-center"><i class="fas fa-puzzle-piece fa-3x text-info opacity-75"></i></div>
                     </div>
-                    <a href="{% url 'tipocomponente_list' %}" class="stretched-link" aria-label="Vedi lista tipi componente"></a>
                 </div>
             </div>
         </div>
-
         <div class="col-xl-3 col-md-6 mb-3">
             <div class="card stat-card warning h-100">
+                 <a href="{% url 'ordine_list' %}" class="stretched-link text-decoration-none text-dark" aria-label="Vedi lista ordini"></a>
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h5 class="card-title text-muted fw-light">Ordini Attivi</h5>
                             <h2 class="mb-0 display-5">{{ ordini_attivi_count }}</h2>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-tasks fa-3x text-warning opacity-75"></i> {# Icona cambiata #}
-                        </div>
+                        <div class="align-self-center"><i class="fas fa-tasks fa-3x text-warning opacity-75"></i></div>
                     </div>
-                    <a href="{% url 'ordine_list' %}" class="stretched-link" aria-label="Vedi lista ordini"></a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="card stat-card danger h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h5 class="card-title text-muted fw-light">Scarpe da Produrre</h5>
-                            <h2 class="mb-0 display-5">{{ scarpe_da_produrre }}</h2>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-industry fa-3x text-danger opacity-75"></i>
-                        </div>
-                    </div>
-                    <a href="{% url 'ordine_list' %}?stato=CONFERMATO" class="stretched-link" aria-label="Vedi ordini confermati"></a>
                 </div>
             </div>
         </div>
@@ -147,48 +98,13 @@
         <div class="col-lg-8 mb-4">
             <div class="card h-100">
                 <div class="card-header bg-dark text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="mb-0">Ordini Recenti</h3>
-                        <a href="{% url 'ordine_list' %}" class="btn btn-sm btn-outline-light">Vedi tutti</a>
-                    </div>
+                    <h3 class="mb-0"><i class="fas fa-history"></i> Ordini Recenti</h3>
                 </div>
-                <div class="card-body recent-orders p-0"> {# Tolto padding per tabella full-width #}
+                <div class="card-body recent-orders p-0">
                     {% if ordini_recenti %}
                         <div class="table-responsive">
                             <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Modello</th>
-                                        <th>Cliente</th>
-                                        <th>Data</th>
-                                        <th>Stato</th>
-                                        <th class="text-end">Quantità</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for ordine in ordini_recenti %}
-                                        <tr onclick="window.location='{% url 'ordine_detail' ordine.pk %}';">
-                                            <td>#{{ ordine.id }}</td>
-                                            <td>{{ ordine.modello.nome|truncatechars:20 }}</td>
-                                            <td>{{ ordine.modello.cliente.nome|truncatechars:20 }}</td>
-                                            <td>{{ ordine.data_ordine|date:"d/m/y" }}</td>
-                                            <td>
-                                                <span class="badge
-                                                    {% if ordine.stato == 'BOZZA' %}bg-secondary
-                                                    {% elif ordine.stato == 'CONFERMATO' %}bg-primary
-                                                    {% elif ordine.stato == 'IN_PRODUZIONE' %}bg-warning text-dark
-                                                    {% elif ordine.stato == 'COMPLETATO' %}bg-success
-                                                    {% else %}bg-danger
-                                                    {% endif %}">
-                                                    {{ ordine.get_stato_display }}
-                                                </span>
-                                            </td>
-                                            <td class="text-end">{{ ordine.quantita_totale }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                                </table>
                         </div>
                     {% else %}
                         <div class="alert alert-light m-3 text-center">Nessun ordine recente. <a href="{% url 'ordine_create' %}" class="alert-link">Crea un nuovo ordine</a>.</div>
@@ -198,120 +114,26 @@
         </div>
 
         <div class="col-lg-4 mb-4">
-            <div class="card mb-4">
+            <div class="card quick-links">
                 <div class="card-header bg-dark text-white">
-                    <h3 class="mb-0">Azioni Rapide</h3>
-                </div>
-                <div class="card-body quick-links">
-                    <div class="row g-2">
-                        <div class="col-6"><a href="{% url 'cliente_create' %}" class="btn btn-outline-primary"><i class="fas fa-user-plus"></i> Cliente</a></div>
-                        <div class="col-6"><a href="{% url 'modello_create' %}" class="btn btn-outline-primary"><i class="fas fa-plus-circle"></i> Modello</a></div>
-                        <div class="col-6"><a href="{% url 'tipocomponente_create' %}" class="btn btn-outline-info"><i class="fas fa-puzzle-piece"></i> Tipo Comp.</a></div> {# NUOVO LINK #}
-                        <div class="col-6"><a href="{% url 'coppiamisura_create' %}" class="btn btn-outline-success"><i class="fas fa-ruler-combined"></i> Misura</a></div>
-                        <div class="col-6"><a href="{% url 'colore_create' %}" class="btn btn-outline-warning"><i class="fas fa-palette"></i> Colore</a></div>
-                        <div class="col-6"><a href="{% url 'ordine_create' %}" class="btn btn-outline-danger"><i class="fas fa-file-invoice"></i> Ordine</a></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    <h3 class="mb-0">Stato Ordini</h3>
+                    <h3 class="mb-0"><i class="fas fa-rocket"></i> Azioni Rapide</h3>
                 </div>
                 <div class="card-body">
-                    {% if stati_ordine_grafico.BOZZA > 0 or stati_ordine_grafico.CONFERMATO > 0 or stati_ordine_grafico.IN_PRODUZIONE > 0 or stati_ordine_grafico.COMPLETATO > 0 or stati_ordine_grafico.ANNULLATO > 0 %}
-                        <canvas id="produzioneChart" height="220"></canvas>
-                    {% else %}
-                         <p class="text-center text-muted mt-3">Nessun dato disponibile per il grafico degli stati ordine.</p>
-                    {% endif %}
+                    <h5 class="card-title">Crea Nuovo...</h5>
+                    <div class="list-group mb-3">
+                        <a href="{% url 'cliente_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-user-plus fa-fw me-2"></i> Cliente</a>
+                        <a href="{% url 'modello_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-drafting-compass fa-fw me-2"></i> Modello</a>
+                        <a href="{% url 'ordine_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Ordine</a>
+                    </div>
+                    <h5 class="card-title">Configura Catalogo...</h5>
+                    <div class="list-group">
+                        <a href="{% url 'tipocomponente_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-puzzle-piece fa-fw me-2"></i> Tipo Componente</a>
+                        <a href="{% url 'taglia_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-ruler-combined fa-fw me-2"></i> Taglia</a>
+                        <a href="{% url 'colore_create' %}" class="list-group-item list-group-item-action"><i class="fas fa-palette fa-fw me-2"></i> Colore</a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script> {# Aggiornato Chart.js a v3.x.x #}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('produzioneChart');
-    if (ctx) { // Controlla se l'elemento canvas esiste
-        const statiOrdineData = {{ stati_ordine_grafico|safe }};
-        const statiLabels = Object.keys(statiOrdineData).map(key => {
-            // Mappa le chiavi interne ai nomi display se necessario o usa direttamente le chiavi
-            const displayNames = {
-                'BOZZA': 'Bozza',
-                'CONFERMATO': 'Confermati',
-                'IN_PRODUZIONE': 'In Produzione',
-                'COMPLETATO': 'Completati',
-                'ANNULLATO': 'Annullati'
-            };
-            return displayNames[key] || key;
-        });
-        const statiCounts = Object.values(statiOrdineData);
-
-        new Chart(ctx.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: statiLabels,
-                datasets: [{
-                    label: 'Numero Ordini',
-                    data: statiCounts,
-                    backgroundColor: [
-                        '#6c757d', // BOZZA
-                        '#0d6efd', // CONFERMATO
-                        '#ffc107', // IN_PRODUZIONE
-                        '#198754', // COMPLETATO
-                        '#dc3545'  // ANNULLATO
-                    ],
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 15,
-                            font: { size: 13 }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed !== null) {
-                                    label += context.parsed;
-                                }
-                                return label + ' ordini';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // L'effetto hover sulle righe della tabella è già gestito da Bootstrap 5,
-    // ma se vuoi un effetto custom puoi ripristinare:
-    /*
-    document.querySelectorAll('tbody tr[onclick]').forEach(row => {
-        row.addEventListener('mouseenter', function() {
-            this.style.backgroundColor = '#f8f9fa'; // Un grigio chiaro Bootstrap
-        });
-        row.addEventListener('mouseleave', function() {
-            this.style.backgroundColor = ''; // Rimuove lo stile inline
-        });
-    });
-    */
-});
-</script>
 {% endblock %}

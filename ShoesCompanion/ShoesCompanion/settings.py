@@ -107,6 +107,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django-tables2 settings
 DJANGO_TABLES2_TEMPLATE = "django_tables2/bootstrap4.html"
 
-# Login and logout redirects
+LOGIN_URL = 'login'  # <--- AGGIUNGI QUESTA RIGA
+
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'

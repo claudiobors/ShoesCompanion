@@ -1,36 +1,25 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Count, Sum
+from django.forms import inlineformset_factory
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
-from django.forms import inlineformset_factory
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
-from django.db.models import Sum, Count
 
-from reportlab.pdfgen import canvas
 from io import BytesIO
+from reportlab.pdfgen import canvas
 
-# Import corretti e aggiornati
-from .models import (
-    Cliente, Colore, Modello, TipoComponente, Componente,
-    Taglia, Articolo, Ordine, DettaglioOrdine
-)
-# Import aggiornati per i form - ASSICURATI CHE QUESTA RIGA SIA CORRETTA
-from .forms import (
-    ClienteForm, ColoreForm, ModelloForm, TipoComponenteForm, ComponenteForm,
-    TagliaForm, ArticoloForm, OrdineForm,
-    DettaglioOrdineForm, DettaglioOrdineFormSet  # DettaglioOrdineForm è qui!
-)
-# Assicurati che anche tables.py e filters.py siano aggiornati
-from .tables import (
-    ClienteTable, ModelloTable, OrdineTable, TagliaTable,
-    TipoComponenteTable, ColoreTable
-)
-from .filters import (
-    ClienteFilter, ModelloFilter, OrdineFilter, TagliaFilter,
-    TipoComponenteFilter, ColoreFilter, ComponenteFilter
-)
-
+from .filters import (ClienteFilter, ColoreFilter, ComponenteFilter,
+                    ModelloFilter, OrdineFilter, TagliaFilter,
+                    TipoComponenteFilter)
+from .forms import (ArticoloForm, ClienteForm, ColoreForm, ComponenteForm,
+                  DettaglioOrdineForm, ModelloForm, OrdineMainForm,
+                  QuantitaPerTagliaForm, TagliaForm, TipoComponenteForm)
+from .models import (Articolo, Cliente, Colore, Componente, DettaglioOrdine,
+                   Modello, Ordine, Taglia, TipoComponente)
+from .tables import (ClienteTable, ColoreTable, ModelloTable, OrdineTable,
+                   TagliaTable, TipoComponenteTable)
 
 # ==============================================================================
 # VISTA HOME
@@ -54,8 +43,9 @@ def home(request):
     context['stati_ordine_grafico'] = stati_grafico
     return render(request, 'gestionale/home.html', context)
 
+
 # ==============================================================================
-# VISTE CRUD
+# VISTE CRUD PRINCIPALI
 # ==============================================================================
 
 # --- Viste Cliente ---
@@ -65,8 +55,7 @@ class ClienteListView(LoginRequiredMixin, generic.ListView):
     paginate_by = 20
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        queryset = self.get_queryset()
-        context['filter'] = ClienteFilter(self.request.GET, queryset=queryset)
+        context['filter'] = ClienteFilter(self.request.GET, queryset=self.get_queryset())
         context['table'] = ClienteTable(context['filter'].qs)
         return context
 
@@ -149,13 +138,7 @@ def modello_duplicate(request, pk):
     return render(request, 'gestionale/modelli/modello_duplicate.html', {'modello': modello})
 
 
-# --- Viste Componente ---
-class ComponenteListView(LoginRequiredMixin, generic.ListView):
-    model = Componente
-    template_name = 'gestionale/componenti/componente_list.html'
-    paginate_by = 20
-    context_object_name = 'componenti'
-
+# --- Viste Componente e Articoli ---
 class ComponenteCreateView(LoginRequiredMixin, generic.CreateView):
     model = Componente
     form_class = ComponenteForm
@@ -181,12 +164,9 @@ class ComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
     def get_success_url(self):
         return reverse('modello_detail', kwargs={'pk': self.object.modello.pk})
 
-
-# --- VISTA GESTIONE MISURE PER COMPONENTE ---
 @login_required
 def manage_articoli_componente(request, componente_id):
     componente = get_object_or_404(Componente.objects.select_related('modello'), pk=componente_id)
-    # Crea un FormSet per il modello Articolo, collegato al Componente
     ArticoloInlineFormSet = inlineformset_factory(Componente, Articolo, form=ArticoloForm, fields=('taglia', 'descrizione_misura'), extra=1, can_delete=True)
     if request.method == 'POST':
         formset = ArticoloInlineFormSet(request.POST, instance=componente, prefix='articoli')
@@ -195,8 +175,7 @@ def manage_articoli_componente(request, componente_id):
             return redirect('modello_detail', pk=componente.modello.pk)
     else:
         formset = ArticoloInlineFormSet(instance=componente, prefix='articoli')
-    context = {'formset': formset, 'componente': componente}
-    return render(request, 'gestionale/componenti/manage_articoli.html', context)
+    return render(request, 'gestionale/componenti/manage_articoli.html', {'formset': formset, 'componente': componente})
 
 
 # --- Viste Ordine ---
@@ -221,23 +200,24 @@ class OrdineDetailView(LoginRequiredMixin, generic.DetailView):
 
 class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
     model = Ordine
-    form_class = OrdineForm
+    form_class = OrdineMainForm
     template_name = 'gestionale/ordini/ordine_form.html'
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
         if self.request.POST:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(self.request.POST, prefix='dettagli')
+            data['quantita_form'] = QuantitaPerTagliaForm(self.request.POST)
         else:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(prefix='dettagli')
+            data['quantita_form'] = QuantitaPerTagliaForm()
         return data
     def form_valid(self, form):
         context = self.get_context_data()
-        dettagli_formset = context['dettagli_formset']
-        if form.is_valid() and dettagli_formset.is_valid():
+        quantita_form = context['quantita_form']
+        if quantita_form.is_valid():
             form.instance.created_by = self.request.user
             self.object = form.save()
-            dettagli_formset.instance = self.object
-            dettagli_formset.save()
+            for taglia_id, quantita in quantita_form.get_dettagli_data():
+                if quantita > 0:
+                    DettaglioOrdine.objects.create(ordine=self.object, taglia_id=taglia_id, quantita=quantita)
             return redirect(self.get_success_url())
         else:
             return self.render_to_response(self.get_context_data(form=form))
@@ -246,21 +226,26 @@ class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
 
 class OrdineUpdateView(LoginRequiredMixin, generic.UpdateView):
     model = Ordine
-    form_class = OrdineForm
+    form_class = OrdineMainForm
     template_name = 'gestionale/ordini/ordine_form.html'
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
+        dettagli_esistenti = self.object.dettagli.all()
         if self.request.POST:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(self.request.POST, instance=self.object, prefix='dettagli')
+            data['quantita_form'] = QuantitaPerTagliaForm(self.request.POST, instance=dettagli_esistenti)
         else:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(instance=self.object, prefix='dettagli')
+            data['quantita_form'] = QuantitaPerTagliaForm(instance=dettagli_esistenti)
         return data
     def form_valid(self, form):
         context = self.get_context_data()
-        dettagli_formset = context['dettagli_formset']
-        if form.is_valid() and dettagli_formset.is_valid():
+        quantita_form = context['quantita_form']
+        if quantita_form.is_valid():
             self.object = form.save()
-            dettagli_formset.save()
+            for taglia_id, quantita in quantita_form.get_dettagli_data():
+                if quantita > 0:
+                    DettaglioOrdine.objects.update_or_create(ordine=self.object, taglia_id=taglia_id, defaults={'quantita': quantita})
+                else:
+                    DettaglioOrdine.objects.filter(ordine=self.object, taglia_id=taglia_id).delete()
             return redirect(self.get_success_url())
         else:
             return self.render_to_response(self.get_context_data(form=form))
@@ -291,7 +276,7 @@ def ordine_annulla(request, pk):
     return redirect('ordine_detail', pk=pk)
 
 
-# --- Viste Dettaglio Ordine (per aggiunta/modifica singola) ---
+# --- Viste Dettaglio Ordine ---
 class DettaglioOrdineCreateView(LoginRequiredMixin, generic.CreateView):
     model = DettaglioOrdine
     form_class = DettaglioOrdineForm
@@ -327,15 +312,18 @@ class DettaglioOrdineDeleteView(LoginRequiredMixin, generic.DeleteView):
         return reverse('ordine_detail', kwargs={'pk': self.object.ordine.pk})
 
 
-# --- Viste Oggetti di Configurazione ---
+# ==============================================================================
+# VISTE OGGETTI DI CONFIGURAZIONE
+# ==============================================================================
+
+# --- Viste Colore ---
 class ColoreListView(LoginRequiredMixin, generic.ListView):
     model = Colore
     template_name = 'gestionale/colori/colore_list.html'
     paginate_by = 20
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        queryset = self.get_queryset()
-        context['filter'] = ColoreFilter(self.request.GET, queryset=queryset)
+        context['filter'] = ColoreFilter(self.request.GET, queryset=self.get_queryset())
         context['table'] = ColoreTable(context['filter'].qs)
         return context
 
@@ -369,8 +357,7 @@ class TagliaListView(LoginRequiredMixin, generic.ListView):
     paginate_by = 20
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        queryset = self.get_queryset()
-        context['filter'] = TagliaFilter(self.request.GET, queryset=queryset)
+        context['filter'] = TagliaFilter(self.request.GET, queryset=self.get_queryset())
         context['table'] = TagliaTable(context['filter'].qs)
         return context
 
@@ -404,8 +391,7 @@ class TipoComponenteListView(LoginRequiredMixin, generic.ListView):
     paginate_by = 20
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        queryset = self.get_queryset()
-        context['filter'] = TipoComponenteFilter(self.request.GET, queryset=queryset)
+        context['filter'] = TipoComponenteFilter(self.request.GET, queryset=self.get_queryset())
         context['table'] = TipoComponenteTable(context['filter'].qs)
         return context
 
@@ -432,7 +418,9 @@ class TipoComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
     success_url = reverse_lazy('tipocomponente_list')
 
 
-# --- Viste Report e PDF ---
+# ==============================================================================
+# VISTE REPORT E PDF
+# ==============================================================================
 @login_required
 def report_dashboard(request):
     ordini_per_stato = Ordine.objects.values('stato').annotate(count=Count('id'), total=Sum('quantita_totale')).order_by('stato')
@@ -443,15 +431,58 @@ def report_dashboard(request):
 
 @login_required
 def bolla_ordine_pdf(request, pk):
-    # ... (logica PDF aggiornata)
-    pass
+    ordine = get_object_or_404(Ordine, pk=pk)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="bolla_ordine_{pk}.pdf"'
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer)
+    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "BOLLA D'ORDINE")
+    p.setFont("Helvetica", 12); p.drawString(100, 780, f"Ordine n. {ordine.id}"); p.drawString(100, 760, f"Cliente: {ordine.modello.cliente.nome}"); p.drawString(100, 740, f"Modello: {ordine.modello.nome}"); p.drawString(100, 720, f"Data: {ordine.data_ordine.strftime('%d/%m/%Y')}")
+    p.setFont("Helvetica-Bold", 12); p.drawString(100, 690, "Dettagli Taglie:"); p.drawString(100, 670, "Taglia"); p.drawString(200, 670, "Quantità")
+    y = 650
+    p.setFont("Helvetica", 10)
+    for dettaglio in ordine.dettagli.all().order_by('taglia__numero'):
+        p.drawString(100, y, str(dettaglio.taglia)); p.drawString(200, y, str(dettaglio.quantita)); y -= 20
+    p.setFont("Helvetica-Bold", 12); p.drawString(100, y-30, f"TOTALE SCARPE: {ordine.quantita_totale}")
+    p.showPage(); p.save()
+    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+    return response
 
 @login_required
 def scheda_materiali_pdf(request, pk):
-    # ... (logica PDF aggiornata)
-    pass
+    ordine = get_object_or_404(Ordine, pk=pk)
+    materiali = ordine.get_materiali_necessari()
+    response = HttpResponse(content_type='application/pdf'); response['Content-Disposition'] = f'attachment; filename="scheda_materiali_{pk}.pdf"'
+    buffer = BytesIO(); p = canvas.Canvas(buffer)
+    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "SCHEDA MATERIALI NECESSARI")
+    p.setFont("Helvetica", 12); p.drawString(100, 780, f"Ordine n. {ordine.id}"); p.drawString(100, 760, f"Cliente: {ordine.modello.cliente.nome}"); p.drawString(100, 740, f"Modello: {ordine.modello.nome}"); p.drawString(100, 720, f"Data: {ordine.data_ordine.strftime('%d/%m/%Y')}")
+    p.setFont("Helvetica-Bold", 12); p.drawString(100, 690, "Materiali Necessari:"); p.drawString(100, 670, "Componente"); p.drawString(250, 670, "Colore"); p.drawString(400, 670, "Quantità")
+    y = 650
+    p.setFont("Helvetica", 10)
+    for (nome_componente, colore), quantita in materiali.items():
+        p.drawString(100, y, nome_componente); p.drawString(250, y, str(colore) if colore else "-"); p.drawString(400, y, str(quantita)); y -= 20
+    p.showPage(); p.save()
+    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+    return response
 
 @login_required
 def scheda_modello_pdf(request, pk):
-    # ... (logica PDF aggiornata)
-    pass
+    modello = get_object_or_404(Modello, pk=pk)
+    response = HttpResponse(content_type='application/pdf'); response['Content-Disposition'] = f'attachment; filename="scheda_modello_{pk}.pdf"'
+    buffer = BytesIO(); p = canvas.Canvas(buffer)
+    p.setFont("Helvetica-Bold", 16); p.drawString(100, 800, "SCHEDA MODELLO"); p.setFont("Helvetica", 12); p.drawString(100, 780, f"Modello: {modello.nome}"); p.drawString(100, 760, f"Cliente: {modello.cliente.nome}"); p.drawString(100, 740, f"Tipo: {modello.get_tipo_display()}")
+    p.setFont("Helvetica-Bold", 12); p.drawString(100, 710, "Componenti e Misure per Taglia:"); p.drawString(100, 690, "Tipo"); p.drawString(250, 690, "Colore")
+    y = 670
+    p.setFont("Helvetica-Bold", 10)
+    for componente in modello.componenti.all():
+        p.drawString(100, y, componente.nome_componente.nome); p.drawString(250, y, str(componente.colore) if componente.colore else "-"); y -= 15
+        p.setFont("Helvetica", 9)
+        for articolo in componente.articoli.all().order_by('taglia__numero'):
+            p.drawString(120, y, f"- Taglia {articolo.taglia}: {articolo.descrizione_misura or 'N/D'}")
+            y -= 12
+        y -= 5
+    if modello.note:
+        p.setFont("Helvetica-Bold", 12); p.drawString(100, y-20, "Note Modello:"); p.setFont("Helvetica", 10); p.drawString(100, y-35, modello.note)
+    p.showPage(); p.save()
+    pdf = buffer.getvalue(); buffer.close(); response.write(pdf)
+    return response

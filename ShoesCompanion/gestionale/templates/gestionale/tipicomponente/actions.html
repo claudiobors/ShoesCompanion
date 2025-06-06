@@ -1,0 +1,9 @@
+{% comment %} File: gestionale/templates/gestionale/tipicomponente/actions.html {% endcomment %}
+<div class="btn-group btn-group-sm">
+    <a href="{% url 'tipocomponente_update' record.pk %}" class="btn btn-outline-primary" title="Modifica">
+        <i class="fas fa-edit"></i>
+    </a>
+    <a href="{% url 'tipocomponente_delete' record.pk %}" class="btn btn-outline-danger" title="Elimina">
+        <i class="fas fa-trash-alt"></i>
+    </a>
+</div>

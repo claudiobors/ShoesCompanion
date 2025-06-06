@@ -1,167 +1,93 @@
 {% extends 'gestionale/base.html' %}
+{% load static %}
 
-{% block title %}{% if form.instance.pk %}Modifica{% else %}Nuovo{% endif %} Componente{% endblock %}
+{% block title %}
+    {% if form.instance.pk %}
+        Modifica Componente
+    {% else %}
+        Nuovo Componente
+    {% endif %}
+{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h2 class="mb-4">{% if form.instance.pk %}Modifica{% else %}Nuovo{% endif %} Componente per {{ form.instance.modello|default_if_none:form.initial.modello|default_if_none:"Nuovo Modello" }}</h2>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 offset-lg-2">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas {% if form.instance.pk %}fa-edit{% else %}fa-plus-circle{% endif %}"></i>
+                        {% if form.instance.pk %}
+                            Modifica Componente
+                        {% else %}
+                            Crea Nuovo Componente
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
 
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h3 class="mb-0">Dati Componente</h3>
-        </div>
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                {{ form.management_form }} {# Necessario per il form principale se usi ModelForm #}
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
 
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="{{ form.modello.id_for_label }}">{{ form.modello.label }}</label>
+                        <div class="mb-3">
+                            <label for="{{ form.modello.id_for_label }}" class="form-label">{{ form.modello.label }} <span class="text-danger">*</span></label>
                             {{ form.modello }}
                             {% if form.modello.errors %}<div class="invalid-feedback d-block">{{ form.modello.errors }}</div>{% endif %}
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="{{ form.nome_componente.id_for_label }}">{{ form.nome_componente.label }}</label>
-                            {{ form.nome_componente }}
-                             <small class="form-text text-muted">Non trovi il tipo? <a href="{% url 'tipocomponente_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
-                            {% if form.nome_componente.errors %}<div class="invalid-feedback d-block">{{ form.nome_componente.errors }}</div>{% endif %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.nome_componente.id_for_label }}" class="form-label">{{ form.nome_componente.label }} <span class="text-danger">*</span></label>
+                                {{ form.nome_componente }}
+                                {% if form.nome_componente.errors %}<div class="invalid-feedback d-block">{{ form.nome_componente.errors }}</div>{% endif %}
+                                <small class="form-text text-muted">Non trovi il tipo? <a href="{% url 'tipocomponente_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.colore.id_for_label }}" class="form-label">{{ form.colore.label }}</label>
+                                {{ form.colore }}
+                                {% if form.colore.errors %}<div class="invalid-feedback d-block">{{ form.colore.errors }}</div>{% endif %}
+                                <small class="form-text text-muted">Non trovi il colore? <a href="{% url 'colore_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
+                            </div>
                         </div>
-                    </div>
-                </div>
-                 <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="{{ form.colore.id_for_label }}">{{ form.colore.label }}</label>
-                            {{ form.colore }}
-                            {% if form.colore.errors %}<div class="invalid-feedback d-block">{{ form.colore.errors }}</div>{% endif %}
+
+                        <div class="mb-3">
+                            <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label }}</label>
+                            {{ form.note }}
+                            {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
                         </div>
-                    </div>
-                 </div>
-                <div class="form-group mb-3">
-                    <label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
-                    {{ form.note }}
-                    {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
-                </div>
 
-                <hr>
-                <h4>Misure Specifiche del Componente</h4>
-                {{ misure_formset.management_form }}
-                {% if misure_formset.non_form_errors %}
-                    <div class="alert alert-danger">
-                        {{ misure_formset.non_form_errors }}
-                    </div>
-                {% endif %}
-
-                <div id="misure-formset-container">
-                    {% for misura_form in misure_formset %}
-                        <div class="misura-form mb-3 p-3 border rounded">
-                            {% if misura_form.instance.pk and not misura_form.DELETE.value %}<h5>Modifica Misura</h5>{% else %}<h5>Nuova Misura</h5>{% endif %}
-                            {{ misura_form.id }} {# Necessario per il formset #}
-                            {% for field in misura_form.hidden_fields %}
-                                {{ field }}
-                            {% endfor %}
-
-                            {% for field in misura_form.visible_fields %}
-                                <div class="form-group row mb-2">
-                                    <label for="{{ field.id_for_label }}" class="col-sm-3 col-form-label">{{ field.label }}</label>
-                                    <div class="col-sm-9">
-                                        {{ field }}
-                                        {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
-                                        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-                                    </div>
-                                </div>
-                            {% endfor %}
-                             {% if misura_form.instance.pk or misure_formset.can_delete %}
-                                <div class="form-group row mb-2">
-                                    <label for="{{ misura_form.DELETE.id_for_label }}" class="col-sm-3 col-form-label">Elimina</label>
-                                    <div class="col-sm-9">
-                                        {{ misura_form.DELETE }}
-                                    </div>
-                                </div>
-                            {% endif %}
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if form.instance.modello %}{% url 'modello_detail' form.instance.modello.pk %}{% else %}{% url 'modello_list' %}{% endif %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Annulla
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if form.instance.pk %}
+                                    <i class="fas fa-save"></i> Salva Modifiche
+                                {% else %}
+                                    <i class="fas fa-arrow-right"></i> Prosegui e Aggiungi Misure
+                                {% endif %}
+                            </button>
                         </div>
-                    {% endfor %}
+                    </form>
                 </div>
-                 <button type="button" id="add-misura-form" class="btn btn-outline-success btn-sm mt-2 mb-3">Aggiungi un'altra Misura</button>
-
-
-                <div class="d-flex justify-content-between mt-4">
-                    <a href="{{ form.instance.modello.get_absolute_url|default_if_none:request.GET.next|default_if_none:form.initial.modello.get_absolute_url|default_if_none:form.modello.get_absolute_url|default_if_none:"#" }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Annulla
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Salva Componente
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
-<template id="empty-misura-form-template">
-    <div class="misura-form mb-3 p-3 border rounded">
-        <h5>Nuova Misura</h5>
-        {{ misure_formset.empty_form.id }}
-        {% for field in misure_formset.empty_form.hidden_fields %}
-            {{ field }}
-        {% endfor %}
-        {% for field in misure_formset.empty_form.visible_fields %}
-            <div class="form-group row mb-2">
-                <label for="{{ field.id_for_label }}" class="col-sm-3 col-form-label">{{ field.label }}</label>
-                <div class="col-sm-9">
-                    {{ field }}
-                    {% if field.help_text %}<small class="form-text text-muted">{{ field.help_text }}</small>{% endif %}
-                    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-                </div>
-            </div>
-        {% endfor %}
-        {% if misure_formset.can_delete %}
-             <div class="form-group row mb-2">
-                <label for="{{ misure_formset.empty_form.DELETE.id_for_label }}" class="col-sm-3 col-form-label">Elimina</label>
-                <div class="col-sm-9">
-                    {{ misure_formset.empty_form.DELETE }}
-                </div>
-            </div>
-        {% endif %}
-    </div>
-</template>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const addFormButton = document.getElementById('add-misura-form');
-    const formsetContainer = document.getElementById('misure-formset-container');
-    const totalFormsInput = document.querySelector('input[name="misure-TOTAL_FORMS"]');
-    const emptyFormTemplate = document.getElementById('empty-misura-form-template').innerHTML;
-    let formNum = parseInt(totalFormsInput.value); // Inizia dal numero di form esistenti
-
-    addFormButton.addEventListener('click', function() {
-        // Clona il template
-        let newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formNum);
-        let newFormDiv = document.createElement('div');
-        newFormDiv.innerHTML = newFormHtml;
-        formsetContainer.appendChild(newFormDiv.firstElementChild); // Aggiungi il contenuto del div, non il div stesso
-
-        // Aggiorna il numero totale di form
-        totalFormsInput.value = formNum + 1;
-        formNum++; // Incrementa per il prossimo form
-    });
-
-    // Per gestire la rimozione dinamica se necessario (più complesso)
-    formsetContainer.addEventListener('change', function(event) {
-        if (event.target.matches('input[type="checkbox"][name$="-DELETE"]')) {
-            let formDiv = event.target.closest('.misura-form');
-            if (event.target.checked) {
-                formDiv.style.opacity = '0.5';
-                // Potresti nascondere i campi o disabilitarli
-            } else {
-                formDiv.style.opacity = '1';
-            }
-        }
+$(document).ready(function() {
+    // Inizializza Select2 per i campi select
+    $('form select:visible:not(.select2-hidden-accessible)').addClass('form-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: $(this).data('placeholder') || 'Seleziona...',
+        width: '100%'
     });
 });
 </script>

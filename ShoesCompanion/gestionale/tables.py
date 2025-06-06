@@ -65,21 +65,27 @@ class OrdineTable(tables.Table):
 # --- Tabelle per Oggetti di Configurazione ---
 
 class ColoreTable(tables.Table):
+    # Mostra un'anteprima del colore con il suo codice HEX
+    anteprima = tables.TemplateColumn(
+        template_code='''
+        <div class="d-flex align-items-center">
+            <div style="width: 30px; height: 30px; background-color: {{ record.valore_hex }}; border-radius: 5px; border: 1px solid #ccc; margin-right: 10px;"></div>
+            <span>{{ record.valore_hex }}</span>
+        </div>
+        ''',
+        verbose_name='Anteprima Colore'
+    )
     azioni = tables.TemplateColumn(
         template_name='gestionale/colori/colore_actions.html',
-        orderable=False, verbose_name='Azioni'
+        orderable=False,
+        verbose_name='Azioni'
     )
-    nome = tables.TemplateColumn(
-        template_code='''
-        <span class="badge fs-6" style="background-color: {{ record.valore_hex }}; color: {% if record.valore_hex|lower == '#ffffff' %}black{% else %}white{% endif %}; border: 1px solid #ccc;">
-            {{ record.nome }}
-        </span>
-        '''
-    )
+
     class Meta:
         model = Colore
         template_name = "django_tables2/bootstrap5.html"
-        fields = ('nome', 'valore_hex', 'descrizione', 'azioni')
+        fields = ('nome', 'anteprima', 'descrizione', 'azioni')
+        sequence = ('nome', 'anteprima', 'descrizione', 'azioni')
 
 # NUOVA Tabella per Taglia (sostituisce CoppiaMisuraTable)
 class TagliaTable(tables.Table):

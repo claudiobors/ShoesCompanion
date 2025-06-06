@@ -43,6 +43,7 @@ class ColoreFilter(django_filters.FilterSet):
         model = Colore
         fields = ['nome', 'valore_hex']
 
+# SOSTITUISCE CoppiaMisuraFilter
 class TagliaFilter(django_filters.FilterSet):
     numero = django_filters.NumberFilter(lookup_expr='exact', label='Numero Taglia Esatto')
 
@@ -50,6 +51,7 @@ class TagliaFilter(django_filters.FilterSet):
         model = Taglia
         fields = ['numero']
 
+# AGGIORNATO ComponenteFilter
 class ComponenteFilter(django_filters.FilterSet):
     nome_componente = django_filters.ModelChoiceFilter(
         field_name='nome_componente',
@@ -65,7 +67,7 @@ class ComponenteFilter(django_filters.FilterSet):
         model = Componente
         fields = ['nome_componente', 'modello', 'colore']
 
-# NUOVO FILTRO AGGIUNTO QUI
+# NUOVO FILTRO
 class TipoComponenteFilter(django_filters.FilterSet):
     nome = django_filters.CharFilter(lookup_expr='icontains', label='Nome Tipo Componente')
 
