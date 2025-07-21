@@ -7,16 +7,19 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
+from django.utils import timezone
 
 from io import BytesIO
 from reportlab.pdfgen import canvas
 
+from decimal import Decimal
+
 from .filters import (ClienteFilter, ColoreFilter, ComponenteFilter,
                     ModelloFilter, OrdineFilter, TagliaFilter,
                     TipoComponenteFilter)
-from .forms import (ArticoloForm, ClienteForm, ColoreForm, ComponenteForm,
-                  DettaglioOrdineForm, ModelloForm, OrdineMainForm,DettaglioOrdineFormSet,
-                  QuantitaPerTagliaForm, TagliaForm, TipoComponenteForm)
+from .forms import (ClienteForm, ColoreForm, ComponenteForm, DettaglioOrdineForm,
+                    ModelloForm, OrdineMainForm, DettaglioOrdineFormSet, ArticoloFormSet,
+                    TagliaForm, TipoComponenteForm)
 from .models import (Articolo, Cliente, Colore, Componente, DettaglioOrdine,
                    Modello, Ordine, Taglia, TipoComponente)
 from .tables import (ClienteTable, ColoreTable, ModelloTable, OrdineTable,
@@ -102,18 +105,47 @@ class ModelloDetailView(LoginRequiredMixin, generic.DetailView):
     model = Modello
     template_name = 'gestionale/modelli/modello_detail.html'
 
+# In views.py
+from .models import Modello, Componente # Aggiungi Componente
+from django.db import transaction
+
 class ModelloCreateView(LoginRequiredMixin, generic.CreateView):
     model = Modello
     form_class = ModelloForm
     template_name = 'gestionale/modelli/modello_form.html'
-    def get_initial(self):
-        initial = super().get_initial()
-        if self.request.GET.get('cliente'):
-            initial['cliente'] = get_object_or_404(Cliente, pk=self.request.GET.get('cliente'))
-        return initial
+    
     def form_valid(self, form):
-        form.instance.created_by = self.request.user
-        return super().form_valid(form)
+        # Il metodo form_valid viene eseguito solo se il form è già valido
+
+        try:
+            # Apriamo una transazione atomica: o tutto o niente.
+            with transaction.atomic():
+                # 1. Recupera la struttura scelta dal form PRIMA di salvare
+                struttura_scelta = form.cleaned_data['struttura']
+
+                # 2. Crea l'oggetto Modello in memoria (commit=False)
+                #    Questo evita l'errore del campo 'struttura'
+                self.object = form.save(commit=False)
+                self.object.created_by = self.request.user
+                
+                # 3. Salva l'oggetto Modello principale nel database
+                self.object.save()
+
+                # 4. Ora che il modello esiste, crea i suoi componenti base
+                tipi_componente_da_creare = struttura_scelta.tipi_componente.all()
+                for tipo_comp in tipi_componente_da_creare:
+                    Componente.objects.create(modello=self.object, nome_componente=tipo_comp)
+        
+        except Exception as e:
+            # Se qualcosa va storto, mostra un messaggio di errore
+            messages.error(self.request, f"Si è verificato un errore durante la creazione del modello: {e}")
+            # Ricarica la pagina con i dati inseriti per non far perdere il lavoro all'utente
+            return self.form_invalid(form)
+
+        # Se tutto è andato a buon fine, mostra il messaggio di successo e reindirizza
+        messages.success(self.request, f"Modello '{self.object.nome}' creato con i componenti di base. Ora puoi definirne i dettagli.")
+        return redirect(self.get_success_url())
+
     def get_success_url(self):
         return reverse('modello_detail', kwargs={'pk': self.object.pk})
 
@@ -168,24 +200,14 @@ class ComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
 @login_required
 def manage_articoli_componente(request, componente_id):
     componente = get_object_or_404(Componente.objects.select_related('modello'), pk=componente_id)
-    
-    # Use the correct fields: 'altezza' and 'larghezza'
-    ArticoloInlineFormSet = inlineformset_factory(
-        Componente, 
-        Articolo, 
-        form=ArticoloForm, 
-        fields=('taglia', 'altezza', 'larghezza'),  # <-- CORRECTED LINE
-        extra=1, 
-        can_delete=True
-    )
 
     if request.method == 'POST':
-        formset = ArticoloInlineFormSet(request.POST, instance=componente, prefix='articoli')
+        formset = ArticoloFormSet(request.POST, instance=componente, prefix='articoli')
         if formset.is_valid():
             formset.save()
             return redirect('modello_detail', pk=componente.modello.pk)
     else:
-        formset = ArticoloInlineFormSet(instance=componente, prefix='articoli')
+        formset = ArticoloFormSet(instance=componente, prefix='articoli')
         
     context = {'formset': formset, 'componente': componente}
     return render(request, 'gestionale/componenti/manage_articoli.html', context)
@@ -210,6 +232,12 @@ class OrdineDetailView(LoginRequiredMixin, generic.DetailView):
         context = super().get_context_data(**kwargs)
         context['materiali_necessari'] = self.object.get_materiali_necessari()
         return context
+    
+from .forms import OrdineMainForm, QuantitaPerTagliaForm # Assicurati di importarlo
+
+
+from .forms import OrdineMainForm, QuantitaPerTagliaForm, ComponentePerOrdineFormSet, QuantitaPerTagliaForm # Aggiungi il nuovo formset
+from .models import Ordine, DettaglioOrdine, Taglia, Modello # Aggiungi Modello
 
 class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
     model = Ordine
@@ -217,44 +245,64 @@ class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
     template_name = 'gestionale/ordini/ordine_form.html'
 
     def get_context_data(self, **kwargs):
-        data = super().get_context_data(**kwargs)
-        if self.request.POST:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(self.request.POST, prefix='dettagli')
-        else:
-            data['dettagli_formset'] = DettaglioOrdineFormSet(prefix='dettagli')
-        return data
+        context = super().get_context_data(**kwargs)
+        # Se i form non sono già nel contesto, li aggiungiamo (caso GET)
+        if 'componenti_formset' not in context:
+            context['componenti_formset'] = ComponentePerOrdineFormSet(prefix='componenti', queryset=Componente.objects.none())
+        if 'quantita_form' not in context:
+            context['quantita_form'] = QuantitaPerTagliaForm(prefix='quantita')
+        return context
 
-    def form_valid(self, form):
-        context = self.get_context_data()
-        dettagli_formset = context['dettagli_formset']
-
-        if not dettagli_formset.is_valid():
-            return self.render_to_response(self.get_context_data(form=form))
-
-        # --- Logica Personalizzata per Sommare le Quantità ---
-        taglie_aggregate = {}
-        for dettaglio_form in dettagli_formset:
-            if dettaglio_form.is_valid() and not dettaglio_form.cleaned_data.get('DELETE', False):
-                taglia = dettaglio_form.cleaned_data.get('taglia')
-                quantita = dettaglio_form.cleaned_data.get('quantita')
-                if taglia and quantita:
-                    taglie_aggregate[taglia] = taglie_aggregate.get(taglia, 0) + quantita
+    def post(self, request, *args, **kwargs):
+        self.object = None
+        form = self.get_form()
+        quantita_form = QuantitaPerTagliaForm(request.POST, prefix='quantita')
         
-        if not taglie_aggregate:
-            # Se non è stata inserita nessuna riga valida, mostra un errore
-            form.add_error(None, "È necessario inserire almeno una riga di dettaglio con taglia e quantità.")
-            return self.render_to_response(self.get_context_data(form=form))
+        # Il formset dei componenti dipende dal modello selezionato nel POST
+        modello_id = request.POST.get('modello')
+        if not modello_id:
+            form.add_error('modello', 'Questo campo è obbligatorio.')
+            return self.form_invalid(form, None, quantita_form)
+        
+        modello_base = get_object_or_404(Modello, pk=modello_id)
+        componenti_formset = ComponentePerOrdineFormSet(request.POST, instance=modello_base, prefix='componenti')
 
-        form.instance.created_by = self.request.user
-        self.object = form.save()
+        if form.is_valid() and componenti_formset.is_valid() and quantita_form.is_valid():
+            return self.form_valid(form, modello_base, componenti_formset, quantita_form)
+        else:
+            return self.form_invalid(form, componenti_formset, quantita_form)
 
-        for taglia, quantita_totale in taglie_aggregate.items():
-            DettaglioOrdine.objects.create(ordine=self.object, taglia=taglia, quantita=quantita_totale)
+    def form_valid(self, form, modello_base, componenti_formset, quantita_form):
+        # La logica di form_valid che hai già scritto va qui...
+        # (quella che controlla .has_changed(), duplica il modello, etc.)
+        # ...assicurati che sia identica a quella della risposta precedente...
+        modello_per_ordine = modello_base
+
+        if componenti_formset.has_changed():
+            nome_variante = f"{modello_base.nome} - V.{timezone.now().strftime('%y%m%d-%H%M')}"
+            modello_variante = modello_base.duplicate(new_name=nome_variante, created_by=self.request.user)
+            componenti_modificati = ComponentePerOrdineFormSet(self.request.POST, instance=modello_variante, prefix='componenti')
+            if componenti_modificati.is_valid():
+                componenti_modificati.save()
+            modello_per_ordine = modello_variante
+            messages.info(self.request, f"Creata una nuova variante del modello: '{nome_variante}'")
+
+        ordine = form.save(commit=False)
+        ordine.modello = modello_per_ordine
+        ordine.created_by = self.request.user
+        ordine.save()
+        
+        for taglia_id, quantita in quantita_form.get_dettagli_data():
+            DettaglioOrdine.objects.create(ordine=ordine, taglia_id=taglia_id, quantita=quantita)
             
-        return redirect(self.get_success_url())
+        messages.success(self.request, f"Ordine #{ordine.id} creato con successo.")
+        return redirect(reverse('ordine_detail', kwargs={'pk': ordine.pk}))
 
-    def get_success_url(self):
-        return reverse('ordine_detail', kwargs={'pk': self.object.pk})
+    def form_invalid(self, form, componenti_formset, quantita_form):
+        # Questo metodo ora si assicura che tutti i form (con i loro dati ed errori)
+        # vengano passati correttamente al template per la visualizzazione.
+        context = self.get_context_data(form=form, componenti_formset=componenti_formset, quantita_form=quantita_form)
+        return self.render_to_response(context)
 
 class OrdineUpdateView(LoginRequiredMixin, generic.UpdateView):
     model = Ordine
@@ -516,6 +564,9 @@ from reportlab.lib.units import cm
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
+# In gestionale/views.py
+from decimal import Decimal # Assicurati che questo import sia presente all'inizio del file
+
 @login_required
 def report_dashboard(request):
     """
@@ -528,29 +579,37 @@ def report_dashboard(request):
     
     materiali_da_ordinare = {}
 
-    for ordine in ordini_attivi.prefetch_related('dettagli__taglia', 'modello__componenti__nome_componente', 'modello__componenti__colore'):
+    for ordine in ordini_attivi:
         materiali_per_ordine = ordine.get_materiali_necessari()
         
         for key, misure in materiali_per_ordine.items():
-            master_entry = materiali_da_ordinare.setdefault(key, {'tot_altezza': 0, 'tot_larghezza': 0, 'unita_prodotte': 0})
-            master_entry['tot_altezza'] += misure.get('tot_altezza', 0)
-            master_entry['tot_larghezza'] += misure.get('tot_larghezza', 0)
+            # La riga seguente è la correzione chiave.
+            # .setdefault() garantisce che 'master_entry' abbia sempre un valore.
+            # Se la chiave (es. 'Tomaia', 'Pelle Nera') non esiste nel dizionario,
+            # la crea con i valori di default. Altrimenti, restituisce quella esistente.
+            master_entry = materiali_da_ordinare.setdefault(key, {
+                'tot_superficie_mq': Decimal('0.0'),
+                'tot_superficie_piedi_quadri': Decimal('0.0'),
+                'unita_prodotte': 0
+            })
+            
+            # Ora possiamo aggiungere i valori con la certezza che 'master_entry' esista.
+            master_entry['tot_superficie_mq'] += misure.get('tot_superficie_mq', Decimal('0.0'))
+            master_entry['tot_superficie_piedi_quadri'] += misure.get('tot_superficie_piedi_quadri', Decimal('0.0'))
             master_entry['unita_prodotte'] += misure.get('unita_prodotte', 0)
 
-    # --- 2. Statistiche Ordini per Stato ---
+    # --- 2. Altre Statistiche (già corrette) ---
     ordini_per_stato_qs = Ordine.objects.values('stato').annotate(
         count=Count('id'),
         total_pairs=Sum('dettagli__quantita') 
     ).order_by('stato')
-    ordini_per_stato_list = list(ordini_per_stato_qs)
     
-    # --- 3. Altre Statistiche ---
     modelli_popolari = Modello.objects.annotate(num_ordini=Count('ordini')).order_by('-num_ordini')[:5]
     clienti_attivi = Cliente.objects.annotate(num_ordini=Count('modelli__ordini')).order_by('-num_ordini')[:5]
 
     context = {
         'materiali_da_ordinare': materiali_da_ordinare,
-        'ordini_per_stato': ordini_per_stato_list,
+        'ordini_per_stato': list(ordini_per_stato_qs),
         'modelli_popolari': modelli_popolari,
         'clienti_attivi': clienti_attivi,
         'stato_choices': dict(Ordine.STATO_ORDINE_CHOICES)
@@ -634,7 +693,7 @@ def scheda_materiali_pdf(request, pk):
     elements.append(Spacer(1, 1*cm))
 
     # Tabella Materiali
-    data_materiali = [["Componente", "Colore", "Unità", "Altezza Tot. (mm)", "Larghezza Tot. (mm)"]]
+    data_materiali = [["Componente", "Colore", "Unità", "Sup. Tot (m²)", "Sup. Tot (Piedi²)"]]
     
     for key, misure in materiali.items():
         nome_componente, colore = key
@@ -642,8 +701,8 @@ def scheda_materiali_pdf(request, pk):
             Paragraph(nome_componente, styles['BodyText']),
             Paragraph(colore.nome if colore else "-", styles['BodyText']),
             misure['unita_prodotte'],
-            f"{misure['tot_altezza']:.2f}",
-            f"{misure['tot_larghezza']:.2f}",
+            f"{misure.get('tot_superficie_mq', 0):.4f}",
+            f"{misure.get('tot_superficie_piedi_quadri', 0):.4f}",
         ])
         
     table_materiali = Table(data_materiali)
@@ -700,9 +759,11 @@ def scheda_modello_pdf(request, pk):
         
         articoli = componente.articoli.all().order_by('taglia__numero')
         if articoli:
-            data_articoli = [["Taglia", "Altezza (mm)", "Larghezza (mm)"]]
+            data_articoli = [["Taglia", "Superficie (m²)", "Superficie (Piedi²)"]]
             for articolo in articoli:
-                data_articoli.append([str(articolo.taglia), f"{articolo.altezza:.2f}", f"{articolo.larghezza:.2f}"])
+                mq_str = f"{articolo.superficie_mq:.4f}" if articolo.superficie_mq is not None else "N/D"
+                pq_str = f"{articolo.superficie_piedi_quadri:.4f}" if articolo.superficie_piedi_quadri is not None else "N/D"
+                data_articoli.append([str(articolo.taglia), mq_str, pq_str])
             
             table_articoli = Table(data_articoli, colWidths=[4*cm, 4*cm, 4*cm])
             table_articoli.setStyle(TableStyle([
@@ -726,3 +787,160 @@ def scheda_modello_pdf(request, pk):
     response.write(buffer.getvalue())
     buffer.close()
     return response
+
+from .models import StrutturaModello # Aggiungi l'import
+from .forms import StrutturaModelloForm # Aggiungi l'import
+
+    # --- Viste StrutturaModello ---
+class StrutturaModelloListView(LoginRequiredMixin, generic.ListView):
+    model = StrutturaModello
+    template_name = 'gestionale/strutture/strutturamodello_list.html'
+    context_object_name = 'strutture'
+
+class StrutturaModelloDetailView(LoginRequiredMixin, generic.DetailView):
+    model = StrutturaModello
+    template_name = 'gestionale/strutture/strutturamodello_detail.html'
+
+class StrutturaModelloCreateView(LoginRequiredMixin, generic.CreateView):
+    model = StrutturaModello
+    form_class = StrutturaModelloForm
+    template_name = 'gestionale/strutture/strutturamodello_form.html'
+    success_url = reverse_lazy('strutturamodello_list')
+
+class StrutturaModelloUpdateView(LoginRequiredMixin, generic.UpdateView):
+    model = StrutturaModello
+    form_class = StrutturaModelloForm
+    template_name = 'gestionale/strutture/strutturamodello_form.html'
+    success_url = reverse_lazy('strutturamodello_list')
+
+class StrutturaModelloDeleteView(LoginRequiredMixin, generic.DeleteView):
+    model = StrutturaModello
+    template_name = 'gestionale/strutture/strutturamodello_confirm_delete.html'
+    success_url = reverse_lazy('strutturamodello_list')
+
+    from django.shortcuts import render
+
+def load_modello_components(request, modello_id):
+    modello = get_object_or_404(Modello, pk=modello_id)
+    componenti_formset = ComponentePerOrdineFormSet(instance=modello, prefix='componenti')
+    return render(request, 'gestionale/ordini/partials/componenti_formset.html', {'componenti_formset': componenti_formset})
+
+def crea_distribuzione_bolle(dettagli_ordine, max_totale, max_per_taglia=None):
+    """
+    Algoritmo per suddividere un ordine in bolle di lavoro ottimizzate.
+    """
+    bolle = []
+    # Crea un dizionario con le quantità rimanenti da distribuire, ordinato per taglia
+    da_distribuire = {
+        d.taglia: d.quantita 
+        for d in dettagli_ordine.order_by('taglia__numero')
+    }
+
+    while any(q > 0 for q in da_distribuire.values()):
+        nuova_bolla = {}
+        paia_in_bolla = 0
+        
+        for taglia, quantita_rimanente in da_distribuire.items():
+            if quantita_rimanente == 0:
+                continue
+
+            # Calcola quanti paia di questa taglia possiamo aggiungere
+            limite_taglia = max_per_taglia if max_per_taglia else quantita_rimanente
+            spazio_disponibile = max_totale - paia_in_bolla
+            
+            da_aggiungere = min(quantita_rimanente, limite_taglia, spazio_disponibile)
+
+            if da_aggiungere > 0:
+                nuova_bolla[taglia] = da_aggiungere
+                paia_in_bolla += da_aggiungere
+                da_distribuire[taglia] -= da_aggiungere
+        
+        if nuova_bolla:
+            bolle.append(nuova_bolla)
+            
+    return bolle
+
+from django.views.generic.edit import FormView
+from .forms import BollaSplitForm
+from .models import Ordine
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_CENTER
+
+
+class GeneraBolleView(LoginRequiredMixin, FormView):
+    form_class = BollaSplitForm
+    template_name = 'gestionale/ordini/genera_bolle_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['ordine'] = get_object_or_404(Ordine, pk=self.kwargs['pk'])
+        return context
+
+    def form_valid(self, form):
+        ordine = get_object_or_404(Ordine, pk=self.kwargs['pk'])
+        max_totale = form.cleaned_data['max_totale']
+        max_per_taglia = form.cleaned_data.get('max_per_taglia')
+
+        dettagli = ordine.dettagli.all()
+        bolle_distribuite = crea_distribuzione_bolle(dettagli, max_totale, max_per_taglia)
+
+        # Creazione del PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+        styles = getSampleStyleSheet()
+        elements = []
+        
+        total_bolle = len(bolle_distribuite)
+        for i, bolla in enumerate(bolle_distribuite, 1):
+            # Informazioni di intestazione
+            elements.append(Paragraph(f"Bolla di Lavoro {i} di {total_bolle}", styles['h1']))
+            elements.append(Spacer(1, 0.5*cm))
+            info_data = [
+                ['Cliente:', ordine.modello.cliente.nome],
+                ['Modello:', ordine.modello.nome],
+                ['Data Ordine:', ordine.data_ordine.strftime('%d/%m/%Y')],
+            ]
+            info_table = Table(info_data, colWidths=[3*cm, None])
+            info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+            elements.append(info_table)
+            elements.append(Spacer(1, 1*cm))
+
+            # Tabella quantità per la bolla corrente
+            table_data = [["Taglia", "Quantità"]]
+            quantita_totale_bolla = 0
+            
+            # Ordina le taglie per numero
+            taglie_ordinate = sorted(bolla.keys(), key=lambda t: t.numero)
+
+            for taglia in taglie_ordinate:
+                quantita = bolla[taglia]
+                table_data.append([str(taglia.numero), str(quantita)])
+                quantita_totale_bolla += quantita
+            
+            table_data.append(["TOTALE", f"{quantita_totale_bolla}"])
+            
+            bolla_table = Table(table_data)
+            bolla_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ]))
+            elements.append(bolla_table)
+
+            if i < total_bolle:
+                elements.append(PageBreak())
+
+        doc.build(elements)
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="bolle_lavoro_ordine_{ordine.pk}.pdf"'
+        response.write(buffer.getvalue())
+        buffer.close()
+        return response

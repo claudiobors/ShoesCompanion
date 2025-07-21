@@ -1,0 +1,43 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Dettaglio Taglia {{ taglia.numero }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Dettaglio Taglia: {{ taglia.numero }}</h2>
+        <div>
+            <a href="{% url 'taglia_update' taglia.pk %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> Modifica
+            </a>
+            <a href="{% url 'taglia_delete' taglia.pk %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Elimina
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Informazioni</h5>
+            <table class="table table-bordered">
+                <tbody>
+                    <tr>
+                        <th style="width: 20%;">Numero Taglia</th>
+                        <td>{{ taglia.numero }}</td>
+                    </tr>
+                    <tr>
+                        <th>Note</th>
+                        <td>{{ taglia.note|default:"Nessuna nota." }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <a href="{% url 'taglia_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Torna alla Lista delle Taglie
+        </a>
+    </div>
+</div>
+{% endblock %}

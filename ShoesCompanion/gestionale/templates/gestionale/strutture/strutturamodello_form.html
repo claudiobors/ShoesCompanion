@@ -1,0 +1,40 @@
+{% extends 'gestionale/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if object %}Modifica Struttura{% else %}Crea Nuova Struttura{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h4 class="mb-0">
+                {% if object %}
+                    <i class="fas fa-edit"></i> Modifica Struttura: {{ object.nome }}
+                {% else %}
+                    <i class="fas fa-plus-circle"></i> Crea Nuova Struttura
+                {% endif %}
+            </h4>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                Una struttura definisce quali componenti verranno creati automaticamente quando si genera un nuovo modello di scarpa.
+            </p>
+            <hr>
+            <form method="post">
+                {% csrf_token %}
+                
+                {{ form|crispy }}
+                
+                <div class="d-flex justify-content-end mt-4">
+                    <a href="{% url 'strutturamodello_list' %}" class="btn btn-outline-secondary me-2">Annulla</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salva Struttura
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

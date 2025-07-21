@@ -132,12 +132,15 @@
             <a href="{% url 'bolla_ordine_pdf' ordine.pk %}" class="btn btn-info me-2 mb-2" target="_blank">
                 <i class="fas fa-file-pdf"></i> Stampa Bolla Ordine
             </a>
-            
             {% if materiali_necessari %}
             <a href="{% url 'scheda_materiali_pdf' ordine.pk %}" class="btn btn-info me-2 mb-2" target="_blank">
                 <i class="fas fa-file-pdf"></i> Stampa Scheda Materiali
             </a>
             {% endif %}
+
+            <a href="{% url 'ordine_genera_bolle' ordine.pk %}" class="btn btn-info me-2 mb-2">
+             <i class="fas fa-receipt"></i> Genera Bolle di Lavoro Personalizzate
+            </a>
 
             {% if ordine.stato == 'BOZZA' %}
             <form action="{% url 'ordine_conferma' ordine.pk %}" method="post" class="d-inline me-2 mb-2">

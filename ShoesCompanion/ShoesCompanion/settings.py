@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     # Third-party apps
     'django_tables2',
     'django_filters',
+    'crispy_forms',
+    'crispy_bootstrap5',
     
     # Your own apps
     'gestionale',
@@ -111,3 +113,6 @@ LOGIN_URL = 'login'  # <--- AGGIUNGI QUESTA RIGA
 
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"

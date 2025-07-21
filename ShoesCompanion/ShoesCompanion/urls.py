@@ -70,6 +70,19 @@ urlpatterns = [
     path('ordini/<int:pk>/conferma/', views.ordine_conferma, name='ordine_conferma'),
     path('ordini/<int:pk>/annulla/', views.ordine_annulla, name='ordine_annulla'),
 
+    # URL per la pagina di generazione delle bolle di lavoro personalizzate
+    path('ordini/<int:pk>/genera-bolle/', views.GeneraBolleView.as_view(), name='ordine_genera_bolle'),
+
+    # Aggiungi una vista per caricare dinamicamente i componenti
+    path('api/modello/<int:modello_id>/componenti/', views.load_modello_components, name='api_load_modello_components'),        
+
+    # URL per la gestione delle Strutture Modello
+    path('strutture/', views.StrutturaModelloListView.as_view(), name='strutturamodello_list'),
+    path('strutture/nuova/', views.StrutturaModelloCreateView.as_view(), name='strutturamodello_create'),
+    path('strutture/<int:pk>/', views.StrutturaModelloDetailView.as_view(), name='strutturamodello_detail'),
+    path('strutture/<int:pk>/modifica/', views.StrutturaModelloUpdateView.as_view(), name='strutturamodello_update'),
+    path('strutture/<int:pk>/elimina/', views.StrutturaModelloDeleteView.as_view(), name='strutturamodello_delete'),
+
     # Dettagli Ordine
     path('ordini/<int:ordine_id>/dettagli/nuovo/', views.DettaglioOrdineCreateView.as_view(), name='dettaglioordine_create_for_ordine'),
     path('dettagliordine/<int:pk>/modifica/', views.DettaglioOrdineUpdateView.as_view(), name='dettaglioordine_update'),

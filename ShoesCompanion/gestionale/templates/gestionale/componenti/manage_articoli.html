@@ -1,13 +1,19 @@
 {% extends 'gestionale/base.html' %}
+{% load static %}
 
 {% block title %}
-    Gestione Misure per {{ componente.nome_componente.nome }}
+    Gestione Superfici per {{ componente.nome_componente.nome }}
 {% endblock %}
 
 {% block extra_css %}
 <style>
+
+    .select2-container--open {
+        z-index: 9999 !important;
+    }
+
     .articolo-form {
-        padding: 1rem;
+        padding: 1.5rem 1rem 1rem 1rem;
         border: 1px solid #dee2e6;
         border-radius: .375rem;
         margin-bottom: 1rem;
@@ -26,9 +32,9 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h2 class="mb-0"><i class="fas fa-ruler-horizontal"></i> Gestione Misure</h2>
+            <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Gestione Superfici</h2>
             <p class="text-muted">
-                Stai definendo altezza e larghezza per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
+                Stai definendo la superficie (in metri quadri o piedi quadri) per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
             </p>
         </div>
     </div>
@@ -46,29 +52,35 @@
                 <div id="articoli-formset-container">
                     {% for form in formset %}
                         <div class="articolo-form">
-                            {% if form.instance.pk and formset.can_delete %}
-                                <div class="form-check" style="position: absolute; top: 1rem; right: 1rem;">
-                                    {{ form.DELETE }}
-                                    <label for="{{ form.DELETE.id_for_label }}" class="form-check-label text-danger">Elimina</label>
-                                </div>
-                            {% endif %}
+                            <div style="display: none;">
+                                {% if form.instance.pk %}{{ form.DELETE }}{% endif %}
+                            </div>
                             {{ form.id }}
                             
                             <div class="row align-items-center">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
                                     {{ form.taglia }}
-                                    {% if form.taglia.errors %}<div class="invalid-feedback d-block">{{ form.taglia.errors }}</div>{% endif %}
+                                    {% if form.taglia.errors %}<div class="invalid-feedback d-block">{{ form.taglia.errors|join:", " }}</div>{% endif %}
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="{{ form.altezza.id_for_label }}" class="form-label">{{ form.altezza.label }} (mm)</label>
-                                    {{ form.altezza }}
-                                    {% if form.altezza.errors %}<div class="invalid-feedback d-block">{{ form.altezza.errors }}</div>{% endif %}
+                                    <label for="{{ form.superficie_mq.id_for_label }}" class="form-label">{{ form.superficie_mq.label }}</label>
+                                    {{ form.superficie_mq }}
+                                    {% if form.superficie_mq.help_text %}<small class="form-text text-muted">{{ form.superficie_mq.help_text }}</small>{% endif %}
+                                    {% if form.superficie_mq.errors %}<div class="invalid-feedback d-block">{{ form.superficie_mq.errors|join:", " }}</div>{% endif %}
                                 </div>
                                  <div class="col-md-4 mb-3">
-                                    <label for="{{ form.larghezza.id_for_label }}" class="form-label">{{ form.larghezza.label }} (mm)</label>
-                                    {{ form.larghezza }}
-                                    {% if form.larghezza.errors %}<div class="invalid-feedback d-block">{{ form.larghezza.errors }}</div>{% endif %}
+                                    <label for="{{ form.superficie_piedi_quadri.id_for_label }}" class="form-label">{{ form.superficie_piedi_quadri.label }}</label>
+                                    {{ form.superficie_piedi_quadri }}
+                                    {% if form.superficie_piedi_quadri.help_text %}<small class="form-text text-muted">{{ form.superficie_piedi_quadri.help_text }}</small>{% endif %}
+                                    {% if form.superficie_piedi_quadri.errors %}<div class="invalid-feedback d-block">{{ form.superficie_piedi_quadri.errors|join:", " }}</div>{% endif %}
+                                </div>
+                                <div class="col-md-1 mb-3 align-self-center text-center">
+                                    {% if form.instance.pk %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm delete-existing-form-btn">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -76,7 +88,7 @@
                 </div>
 
                 <button type="button" id="add-articolo-form" class="btn btn-outline-success btn-sm mt-2 mb-3">
-                    <i class="fas fa-plus"></i> Aggiungi Riga Taglia/Misura
+                    <i class="fas fa-plus"></i> Aggiungi Riga Taglia/Superficie
                 </button>
                 
                 <hr>
@@ -85,7 +97,7 @@
                         <i class="fas fa-check"></i> Fatto, torna al Modello
                     </a>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Salva Misure
+                        <i class="fas fa-save"></i> Salva Superfici
                     </button>
                 </div>
             </form>
@@ -96,22 +108,24 @@
 <template id="empty-articolo-form-template">
     <div class="articolo-form">
         {% with formset.empty_form as form %}
-            <button type="button" class="btn-close remove-articolo-btn" aria-label="Rimuovi"></button>
+            <button type="button" class="btn-close remove-new-form-btn" aria-label="Rimuovi"></button>
             {{ form.id }}
-            <div class="row">
-                <div class="col-md-4 mb-3">
+            <div class="row align-items-center">
+                <div class="col-md-3 mb-3">
                     <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
                     {{ form.taglia }}
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="{{ form.altezza.id_for_label }}" class="form-label">{{ form.altezza.label }} (mm)</label>
-                    {{ form.altezza }}
+                    <label for="{{ form.superficie_mq.id_for_label }}" class="form-label">{{ form.superficie_mq.label }}</label>
+                    {{ form.superficie_mq }}
+                    {% if form.superficie_mq.help_text %}<small class="form-text text-muted">{{ form.superficie_mq.help_text }}</small>{% endif %}
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="{{ form.larghezza.id_for_label }}" class="form-label">{{ form.larghezza.label }} (mm)</label>
-                    {{ form.larghezza }}
+                    <label for="{{ form.superficie_piedi_quadri.id_for_label }}" class="form-label">{{ form.superficie_piedi_quadri.label }}</label>
+                    {{ form.superficie_piedi_quadri }}
+                    {% if form.superficie_piedi_quadri.help_text %}<small class="form-text text-muted">{{ form.superficie_piedi_quadri.help_text }}</small>{% endif %}
                 </div>
-            </div>
+                </div>
         {% endwith %}
     </div>
 </template>
@@ -119,32 +133,60 @@
 
 {% block extra_js %}
 <script>
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (la funzione initializeSelect2 rimane invariata) ...
     function initializeSelect2(element) {
-        $(element).find('select').addClass('form-select').select2({
-            theme: 'bootstrap-5',
-            placeholder: 'Seleziona una taglia...',
-            width: '100%'
+        $(element).find('select').each(function() {
+            if (!$(this).data('select2')) {
+                $(this).addClass('form-select').select2({
+                    theme: 'bootstrap-5',
+                    placeholder: 'Seleziona una taglia...',
+                    width: '100%'
+                });
+            }
         });
     }
     initializeSelect2(document);
+
     const formsetContainer = document.getElementById('articoli-formset-container');
     const addButton = document.getElementById('add-articolo-form');
     const totalFormsInput = document.querySelector('input[name="articoli-TOTAL_FORMS"]');
     const template = document.getElementById('empty-articolo-form-template');
+
     if (addButton) {
         addButton.addEventListener('click', function() {
             let formNum = parseInt(totalFormsInput.value);
             let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
             let newDiv = document.createElement('div');
             newDiv.innerHTML = newFormHtml;
-            formsetContainer.appendChild(newDiv);
-            initializeSelect2(newDiv);
+            const newFormElement = newDiv.firstElementChild; 
+            formsetContainer.appendChild(newFormElement);
+            initializeSelect2(newFormElement);
             totalFormsInput.value = formNum + 1;
         });
     }
-    $(formsetContainer).on('click', '.remove-articolo-btn', function() {
-        $(this).closest('.articolo-form').remove();
+
+    // Aggiungiamo la logica per i pulsanti
+    formsetContainer.addEventListener('click', function(e) {
+        // Pulsante per RIMUOVERE una riga NUOVA (non ancora salvata)
+        if (e.target && e.target.classList.contains('remove-new-form-btn')) {
+            e.target.closest('.articolo-form').remove();
+        }
+        
+        // Pulsante per ELIMINARE una riga ESISTENTE (dal database)
+        if (e.target && e.target.closest('.delete-existing-form-btn')) {
+            const button = e.target.closest('.delete-existing-form-btn');
+            const formRow = button.closest('.articolo-form');
+            
+            // Trova la checkbox DELETE nascosta e selezionala
+            const deleteInput = formRow.querySelector('input[type="checkbox"][name*="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+            }
+            
+            // Nascondi la riga per un feedback immediato
+            formRow.style.display = 'none';
+        }
     });
 });
 </script>

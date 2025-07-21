@@ -1,0 +1,40 @@
+{% extends 'gestionale/base.html' %}
+
+{% block title %}Dettaglio Struttura: {{ strutturamodello.nome }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="fas fa-sitemap"></i> {{ strutturamodello.nome }}</h2>
+        <div>
+            <a href="{% url 'strutturamodello_update' strutturamodello.pk %}" class="btn btn-primary"><i class="fas fa-edit"></i> Modifica</a>
+            <a href="{% url 'strutturamodello_delete' strutturamodello.pk %}" class="btn btn-danger"><i class="fas fa-trash"></i> Elimina</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Componenti Base Inclusi</h5>
+        </div>
+        <div class="card-body">
+            {% if strutturamodello.tipi_componente.all %}
+                <ul class="list-group">
+                    {% for componente in strutturamodello.tipi_componente.all %}
+                        <li class="list-group-item">
+                            <i class="fas fa-puzzle-piece fa-fw me-2 text-muted"></i>{{ componente.nome }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted">Nessun componente base è stato associato a questa struttura.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'strutturamodello_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Torna alla Lista
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,74 +1,43 @@
 {% extends 'gestionale/base.html' %}
-{% load static %} {# Aggiunto per coerenza #}
+{% load static %}
 
-{% block title %}Dettaglio Modello - {{ modello.nome|default:"N/D" }}{% endblock %}
+{% block title %}Dettaglio Modello - {{ modello.nome }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-        <h2 class="mb-2 me-3"><i class="fas fa-drafting-compass"></i> Dettaglio Modello: {{ modello.nome|default:"N/D" }}</h2>
+        <h2 class="mb-2 me-3"><i class="fas fa-drafting-compass"></i> {{ modello.nome }}</h2>
         <div class="btn-toolbar" role="toolbar">
             <div class="btn-group me-2 mb-2" role="group">
-                <a href="{% url 'modello_update' modello.pk %}" class="btn btn-primary">
-                    <i class="fas fa-edit"></i> Modifica
-                </a>
-                <a href="{% url 'modello_duplicate' modello.pk %}" class="btn btn-secondary">
-                    <i class="fas fa-copy"></i> Duplica
-                </a>
+                <a href="{% url 'modello_update' modello.pk %}" class="btn btn-primary"><i class="fas fa-edit"></i> Modifica</a>
+                <a href="{% url 'modello_duplicate' modello.pk %}" class="btn btn-secondary"><i class="fas fa-copy"></i> Crea Variante</a>
             </div>
             <div class="btn-group me-2 mb-2" role="group">
-                 <a href="{% url 'modello_delete' modello.pk %}" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Elimina
-                </a>
+                 <a href="{% url 'modello_delete' modello.pk %}" class="btn btn-danger"><i class="fas fa-trash"></i> Elimina</a>
             </div>
-            <div class="btn-group mb-2" role="group">
-                <a href="{% url 'modello_list' %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-list"></i> Lista Modelli
-                </a>
+             <div class="btn-group mb-2" role="group">
+                <a href="{% url 'scheda_modello_pdf' modello.pk %}" class="btn btn-info" target="_blank"><i class="fas fa-file-pdf"></i> Esporta PDF</a>
             </div>
         </div>
     </div>
 
     <div class="card shadow-sm mb-4">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Informazioni Modello</h5>
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Informazioni Generali</h5>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-8">
-                    <table class="table table-bordered table-sm table-hover">
+                    <table class="table table-sm table-borderless">
                         <tbody>
                             <tr>
                                 <th width="30%">Cliente</th>
-                                <td>
-                                    {% if modello.cliente %}
-                                        <a href="{{ modello.cliente.get_absolute_url }}">{{ modello.cliente.nome|default:"N/D" }}</a>
-                                    {% else %}
-                                        N/D
-                                    {% endif %}
-                                </td>
+                                <td><a href="{{ modello.cliente.get_absolute_url }}">{{ modello.cliente.nome }}</a></td>
                             </tr>
-                            <tr>
-                                <th>Nome Modello</th>
-                                <td>{{ modello.nome|default:"N/D" }}</td>
-                            </tr>
-                            <tr>
-                                <th>Tipo Scarpa</th>
-                                <td>{{ modello.get_tipo_display|default:"N/D" }}</td>
-                            </tr>
-                            <tr>
-                                <th>Creato da</th>
-                                <td>{{ modello.created_by.username|default:"Sistema" }} il {{ modello.created_at|date:"d/m/Y H:i" }}</td>
-                            </tr>
-                            <tr>
-                                <th>Ultima modifica</th>
-                                <td>{{ modello.updated_at|date:"d/m/Y H:i" }}</td>
-                            </tr>
+                            <tr><th>Tipo Scarpa</th><td>{{ modello.get_tipo_display }}</td></tr>
+                            <tr><th>Creato da</th><td>{{ modello.created_by.username|default:"Sistema" }} il {{ modello.created_at|date:"d/m/Y" }}</td></tr>
                             {% if modello.note %}
-                            <tr>
-                                <th>Note</th>
-                                <td style="white-space: pre-wrap;">{{ modello.note }}</td>
-                            </tr>
+                            <tr><th>Note</th><td style="white-space: pre-wrap;">{{ modello.note }}</td></tr>
                             {% endif %}
                         </tbody>
                     </table>
@@ -76,12 +45,12 @@
                 <div class="col-md-4">
                     {% if modello.foto %}
                         <a href="{{ modello.foto.url }}" target="_blank" title="Visualizza immagine ingrandita">
-                            <img src="{{ modello.foto.url }}" alt="Foto {{ modello.nome|default:'modello' }}" class="img-fluid rounded shadow-sm border" style="max-height: 300px; object-fit: cover;">
+                            <img src="{{ modello.foto.url }}" alt="Foto {{ modello.nome }}" class="img-fluid rounded shadow-sm border">
                         </a>
                     {% else %}
-                        <div class="text-center py-5 bg-light rounded border d-flex flex-column justify-content-center align-items-center" style="min-height: 200px;">
-                            <i class="fas fa-image fa-5x text-muted opacity-50"></i>
-                            <p class="mt-2 text-muted">Nessuna foto caricata</p>
+                        <div class="text-center py-5 bg-light rounded border d-flex flex-column justify-content-center align-items-center h-100">
+                            <i class="fas fa-image fa-4x text-muted opacity-50"></i>
+                            <p class="mt-2 text-muted">Nessuna foto</p>
                         </div>
                     {% endif %}
                 </div>
@@ -90,139 +59,101 @@
     </div>
 
     <div class="card shadow-sm mb-4">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-puzzle-piece"></i> Componenti del Modello ({{ modello.componenti.all.count }})</h5>
-            <a href="{% url 'componente_create_for_modello' modello.pk %}" class="btn btn-success btn-sm">
-                <i class="fas fa-plus"></i> Aggiungi Componente
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-puzzle-piece"></i> Componenti del Modello</h5>
+            <a href="{% url 'componente_create_for_modello' modello.pk %}" class="btn btn-success btn-sm" title="Aggiungi un componente non standard">
+                <i class="fas fa-plus"></i> Aggiungi
             </a>
         </div>
-        <div class="card-body p-0"> {# Rimosso padding per tabella full-width #}
+        <div class="card-body p-0">
             {% if modello.componenti.all %}
                 <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
+                    <table class="table table-hover table-vcenter mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Tipo Componente</th>
-                                <th>Colore</th>
-                                <th>Misure Specifiche Applicate</th>
-                                <th style="width: 20%;">Note</th>
-                                <th style="width: 15%;">Azioni</th>
+                                <th>Componente</th>
+                                <th class="text-center">Stato</th>
+                                <th>Materiale / Colore</th>
+                                <th class="text-center">Misure Definite</th>
+                                <th class="text-center">Azioni Guidate</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for componente in modello.componenti.all %}
+                                {% with articoli_count=componente.articoli.count %}
                                 <tr>
-                                    <td>{{ componente.nome_componente.nome|default:"N/D" }}</td>
+                                    <td class="fw-bold">{{ componente.nome_componente.nome }}</td>
+                                    
+                                    <td class="text-center">
+                                        {% if componente.colore and articoli_count > 0 %}
+                                            <span class="badge bg-success">Completo</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Da Definire</span>
+                                        {% endif %}
+                                    </td>
+
                                     <td>
                                         {% if componente.colore %}
-                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; ...">
-                                                {{ componente.colore.nome|default:"N/D" }}
+                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; color: {% if componente.colore.valore_hex|slice:':1' in '#012345' %}white{% else %}black{% endif %}; border: 1px solid #ccc;">
+                                                {{ componente.colore.nome }}
                                             </span>
-                                        {% else %}<span class="text-muted">-</span>{% endif %}
+                                        {% else %}
+                                            <span class="text-muted fst-italic">Non specificato</span>
+                                        {% endif %}
                                     </td>
-                                    <td>
-                                        {# Mostra le misure esistenti in modo compatto #}
-                                        {% for articolo in componente.articoli.all %}
-                                            <span class="badge bg-secondary">T{{ articolo.taglia }}: H{{ articolo.altezza }}/L{{ articolo.larghezza }}</span>
-                                        {% empty %}
-                                            <span class="text-muted">Nessuna misura definita</span>
-                                        {% endfor %}
+
+                                    <td class="text-center">
+                                        <span class="badge {% if articoli_count > 0 %}bg-info{% else %}bg-secondary{% endif %}">
+                                            {{ articoli_count }}
+                                        </span>
                                     </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm">
-                                            {# --- PULSANTE AGGIUNTO --- #}
-                                            <a href="{% url 'manage_articoli_componente' componente.pk %}" class="btn btn-outline-success" title="Gestisci Misure">
-                                                <i class="fas fa-ruler-horizontal"></i> Misure
+                                    
+                                    <td class="text-center">
+                                        {% if not componente.colore %}
+                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-pen-nib"></i> Definisci Materiale
                                             </a>
-                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-outline-primary" title="Modifica Componente">
+                                        {% else %}
+                                            <a href="{% url 'manage_articoli_componente' componente.pk %}" class="btn btn-success btn-sm">
+                                                <i class="fas fa-ruler-horizontal"></i> Gestisci Misure
+                                            </a>
+                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-outline-secondary btn-sm" title="Modifica">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <a href="{% url 'componente_delete' componente.pk %}" class="btn btn-outline-danger" title="Elimina Componente">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        </div>
+                                        {% endif %}
                                     </td>
                                 </tr>
+                                {% endwith %}
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             {% else %}
                 <div class="alert alert-light m-3 text-center" role="alert">
-                    Nessun componente definito per questo modello.
-                    <a href="{% url 'componente_create_for_modello' modello.pk %}" class="alert-link">Aggiungi il primo componente</a>.
+                    Nessun componente di base definito. <a href="{% url 'componente_create_for_modello' modello.pk %}" class="alert-link">Aggiungi il primo componente</a>.
                 </div>
             {% endif %}
         </div>
     </div>
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Ordini per questo Modello ({{ modello.ordini.all.count }})</h5>
-            <a href="{% url 'ordine_create_for_modello' modello.pk %}" class="btn btn-success btn-sm">
-                <i class="fas fa-plus"></i> Nuovo Ordine
-            </a>
-        </div>
-        <div class="card-body p-0"> {# Rimosso padding per tabella full-width #}
-            {% if modello.ordini.all %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>ID Ordine</th>
-                                <th>Data Ordine</th>
-                                <th>Stato</th>
-                                <th class="text-end">Quantità Totale</th>
-                                <th>Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for ordine in modello.ordini.all %}
-                                <tr>
-                                    <td><a href="{{ ordine.get_absolute_url }}">#{{ ordine.id }}</a></td>
-                                    <td>{{ ordine.data_ordine|date:"d/m/Y H:i" }}</td>
-                                    <td>
-                                        <span class="badge
-                                            {% if ordine.stato == 'BOZZA' %}bg-secondary
-                                            {% elif ordine.stato == 'CONFERMATO' %}bg-primary
-                                            {% elif ordine.stato == 'IN_PRODUZIONE' %}bg-warning text-dark
-                                            {% elif ordine.stato == 'COMPLETATO' %}bg-success
-                                            {% else %}bg-danger
-                                            {% endif %}">
-                                            {{ ordine.get_stato_display }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end">{{ ordine.quantita_totale }}</td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="{% url 'ordine_detail' ordine.pk %}" class="btn btn-outline-info" title="Dettagli Ordine">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            {% if ordine.stato == 'BOZZA' %}
-                                                <a href="{% url 'ordine_update' ordine.pk %}" class="btn btn-outline-primary" title="Modifica Ordine">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    
+    <div class="accordion" id="accordionOrdini">
+        <div class="accordion-item shadow-sm">
+            <h2 class="accordion-header" id="headingOne">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                    <i class="fas fa-file-invoice-dollar me-2"></i> Ordini per questo Modello ({{ modello.ordini.all.count }})
+                </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionOrdini">
+                <div class="accordion-body p-0">
+                    {% if modello.ordini.all %}
+                       {% else %}
+                        <div class="alert alert-light m-0 text-center rounded-0" role="alert">
+                            Nessun ordine registrato. <a href="#" class="alert-link">Crea il primo ordine</a>.
+                        </div>
+                    {% endif %}
                 </div>
-            {% else %}
-                 <div class="alert alert-light m-3 text-center" role="alert">
-                    Nessun ordine registrato per questo modello.
-                    <a href="{% url 'ordine_create_for_modello' modello.pk %}" class="alert-link">Crea il primo ordine</a>.
-                </div>
-            {% endif %}
+            </div>
         </div>
-    </div>
-
-    <div class="mt-4 d-flex justify-content-end">
-        <a href="{% url 'scheda_modello_pdf' modello.pk %}" class="btn btn-info" target="_blank">
-            <i class="fas fa-file-pdf"></i> Genera Scheda Modello (PDF)
-        </a>
     </div>
 </div>
 {% endblock %}

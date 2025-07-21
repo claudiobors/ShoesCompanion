@@ -1,0 +1,53 @@
+{% load crispy_forms_tags %}
+
+{{ componenti_formset.management_form }}
+
+<div id="componenti-forms-container">
+    {% for form in componenti_formset %}
+        <div class="row mb-2 border-bottom pb-2 align-items-center componente-form-row">
+            {{ form.id }} {# Campo nascosto necessario per il formset #}
+            
+            <div class="col-md-3">
+                {% if form.instance.pk %}
+                    <label class="form-label fw-bold">{{ form.instance.nome_componente.nome }}</label>
+                    {{ form.nome_componente.as_hidden }}
+                {% else %}
+                    {{ form.nome_componente|as_crispy_field }}
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                {{ form.colore|as_crispy_field }}
+            </div>
+            <div class="col-md-5">
+                {{ form.note|as_crispy_field }}
+            </div>
+            <div class="col-md-1 text-center">
+                {% if not form.instance.pk and componenti_formset.can_delete %}
+                    {{ form.DELETE }}
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-componente-btn" title="Rimuovi riga">
+                        <i class="fas fa-times"></i>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<template id="empty-componente-form-template">
+    {% with componenti_formset.empty_form as form %}
+        <div class="row mb-2 border-bottom pb-2 align-items-center componente-form-row">
+            {{ form.id }}
+            <div class="col-md-3">{{ form.nome_componente|as_crispy_field }}</div>
+            <div class="col-md-3">{{ form.colore|as_crispy_field }}</div>
+            <div class="col-md-5">{{ form.note|as_crispy_field }}</div>
+            <div class="col-md-1 text-center">
+                {% if formset.can_delete %}
+                    {{ form.DELETE }}
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-componente-btn" title="Rimuovi riga">
+                        <i class="fas fa-times"></i>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    {% endwith %}
+</template>

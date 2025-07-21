@@ -1,0 +1,46 @@
+{% extends 'gestionale/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Genera Bolle di Lavoro per Ordine #{{ ordine.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-3"><i class="fas fa-receipt"></i> Genera Bolle di Lavoro</h2>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Riepilogo Ordine #{{ ordine.id }}</h5>
+        </div>
+        <div class="card-body">
+            <p><strong>Cliente:</strong> {{ ordine.modello.cliente.nome }}</p>
+            <p><strong>Modello:</strong> {{ ordine.modello.nome }}</p>
+            <p><strong>Quantità Totale:</strong> {{ ordine.quantita_totale }} paia</p>
+            <ul>
+                {% for dettaglio in ordine.dettagli.all %}
+                    <li>Taglia {{ dettaglio.taglia.numero }}: <strong>{{ dettaglio.quantita }}</strong> paia</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Imposta Vincoli di Suddivisione</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Definisci come suddividere l'ordine in bolle di lavoro per la produzione.</p>
+            <form method="post">
+                {% csrf_token %}
+                {{ form|crispy }}
+                <hr>
+                <div class="d-flex justify-content-end">
+                    <a href="{{ ordine.get_absolute_url }}" class="btn btn-outline-secondary me-2">Annulla</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-file-pdf"></i> Genera PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

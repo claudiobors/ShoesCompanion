@@ -1,112 +1,115 @@
 {% extends 'gestionale/base.html' %}
-{% load static %}
-
-{% block title %}
-    {% if form.instance.pk %}Modifica Ordine #{{ form.instance.id }}{% else %}Nuovo Ordine{% endif %}
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    .dettaglio-form { padding: 1rem; border-bottom: 1px solid #eee; margin-bottom: 1rem; }
-    .dettaglio-form:last-child { border-bottom: none; }
-</style>
-{% endblock %}
-
-
-{% block content %}
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <h3 class="mb-0">
-                <i class="fas {% if form.instance.pk %}fa-edit{% else %}fa-file-invoice-dollar{% endif %}"></i>
-                {% if form.instance.pk %}Modifica Ordine #{{ form.instance.id }}{% else %}Crea Nuovo Ordine{% endif %}
-            </h3>
-        </div>
-        <div class="card-body">
-            <form method="post" novalidate>
-                {% csrf_token %}
-
-                <fieldset class="border p-3 mb-4">
-                    <legend class="w-auto px-2 h6">Dati Principali</legend>
-                    {% if form.non_field_errors %}<div class="alert alert-danger p-2">{{ form.non_field_errors }}</div>{% endif %}
-                    {{ form.as_p }}
-                </fieldset>
-
-                <fieldset class="border p-3">
-                    <legend class="w-auto px-2 h6">Dettagli Taglie e Quantità</legend>
-                    {{ dettagli_formset.management_form }}
-                    {% if dettagli_formset.non_form_errors %}<div class="alert alert-danger p-2">{{ dettagli_formset.non_form_errors }}</div>{% endif %}
-
-                    <div id="dettagli-formset-container">
-                        {% for form_dettaglio in dettagli_formset %}
-                        <div class="dettaglio-form">
-                            {{ form_dettaglio.id }}
-                            {% if form_dettaglio.non_field_errors %}<div class="alert alert-danger p-2">{{ form_dettaglio.non_field_errors }}</div>{% endif %}
-                            <div class="row align-items-end">
-                                <div class="col-md-5 mb-3">{{ form_dettaglio.taglia.label_tag }} {{ form_dettaglio.taglia }}</div>
-                                <div class="col-md-3 mb-3">{{ form_dettaglio.quantita.label_tag }} {{ form_dettaglio.quantita }}</div>
-                                <div class="col-md-4 mb-3">{% if form_dettaglio.DELETE %}{{ form_dettaglio.DELETE.label_tag }} {{ form_dettaglio.DELETE }}{% endif %}</div>
-                                <div class="col-12">{{ form_dettaglio.note.label_tag }} {{ form_dettaglio.note }}</div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <button type="button" id="add-dettaglio-form" class="btn btn-outline-success btn-sm mt-2">
-                        <i class="fas fa-plus"></i> Aggiungi Riga
-                    </button>
-                </fieldset>
-
-                <hr>
-                <div class="d-flex justify-content-between">
-                    <a href="{% if form.instance.pk %}{% url 'ordine_detail' form.instance.pk %}{% else %}{% url 'ordine_list' %}{% endif %}" class="btn btn-outline-secondary">Annulla</a>
-                    <button type="submit" class="btn btn-primary">Salva Ordine</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<template id="empty-dettaglio-form-template">
-    <div class="dettaglio-form border-bottom pb-3 mb-3">
-        {{ dettagli_formset.empty_form.id }}
-        <div class="row align-items-end">
-            <div class="col-md-5 mb-3">{{ dettagli_formset.empty_form.taglia.label_tag }} {{ dettagli_formset.empty_form.taglia }}</div>
-            <div class="col-md-3 mb-3">{{ dettagli_formset.empty_form.quantita.label_tag }} {{ dettagli_formset.empty_form.quantita }}</div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-sm btn-outline-danger remove-dettaglio-form">Rimuovi</button></div>
-            <div class="col-12">{{ dettagli_formset.empty_form.note.label_tag }} {{ dettagli_formset.empty_form.note }}</div>
-        </div>
-    </div>
-</template>
-{% endblock %}
-
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    function applyStylesAndPlugins(element) {
-        $(element).find('select').addClass('form-select');
-        $(element).find('input:not([type=checkbox])').addClass('form-control');
-        $(element).find('textarea').addClass('form-control');
+    const modelloSelect = $('select[name="modello"]');
+    const componentiContainer = $('#componenti-container');
+    const componentiWrapper = $('#componenti-wrapper');
+
+    // Funzione per caricare i componenti base via AJAX
+    modelloSelect.on('change', function() {
+        const modelloId = $(this).val();
+        if (modelloId) {
+            const url = `/api/modello/${modelloId}/componenti/`;
+            componentiContainer.html('<p class="text-center text-muted">Caricamento componenti...</p>');
+            componentiWrapper.removeClass('d-none');
+            $.get(url, function(data) {
+                componentiContainer.html(data);
+            }).fail(function() {
+                componentiContainer.html('<p class="text-center text-danger">Errore nel caricamento dei componenti.</p>');
+            });
+        } else {
+            componentiContainer.html('');
+            componentiWrapper.addClass('d-none');
+        }
+    });
+
+    // Funzione per aggiungere una nuova riga componente
+    $('#componenti-wrapper').on('click', '#add-componente-form', function() {
+        const formContainer = $('#componenti-forms-container');
+        const totalFormsInput = $('input[name="componenti-TOTAL_FORMS"]');
+        const template = $('#empty-componente-form-template');
+        
+        let formNum = parseInt(totalFormsInput.val());
+        let newFormHtml = template.html().replace(/__prefix__/g, formNum);
+
+        formContainer.append(newFormHtml);
+        totalFormsInput.val(formNum + 1);
+    });
+
+    // Funzione per rimuovere una riga componente aggiunta
+    $('#componenti-wrapper').on('click', '.remove-componente-btn', function() {
+        $(this).closest('.componente-form-row').find('input[name*="-DELETE"]').prop('checked', true);
+        $(this).closest('.componente-form-row').hide();
+    });
+
+    // Se la pagina è stata ricaricata per un errore, riesegui la logica
+    if (modelloSelect.val()) {
+        modelloSelect.trigger('change');
     }
-    applyStylesAndPlugins(document);
-
-    const formsetContainer = document.getElementById('dettagli-formset-container');
-    const addButton = document.getElementById('add-dettaglio-form');
-    const totalFormsInput = document.querySelector('input[name="dettagli-TOTAL_FORMS"]');
-    const template = document.getElementById('empty-dettaglio-form-template');
-
-    addButton.addEventListener('click', function() {
-        let formNum = parseInt(totalFormsInput.value);
-        let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
-        let newDiv = document.createElement('div');
-        newDiv.innerHTML = newFormHtml;
-        formsetContainer.appendChild(newDiv);
-        applyStylesAndPlugins(newDiv);
-        totalFormsInput.value = formNum + 1;
-    });
-
-    $(formsetContainer).on('click', '.remove-dettaglio-form', function() {
-        $(this).closest('.dettaglio-form').parent().remove();
-    });
 });
 </script>
+{% endblock %}
+
+
+{% load crispy_forms_tags %}
+
+{% block title %}Nuovo Ordine{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="fas fa-plus-circle"></i> Crea Nuovo Ordine</h2>
+    <hr>
+    
+    <form method="post">
+        {% csrf_token %}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">1. Dati Principali e Scelta Modello</h5>
+                {{ form|crispy }}
+            </div>
+        </div>
+
+        <div id="componenti-wrapper" class="card shadow-sm mt-4 {% if not form.instance.modello_id %}d-none{% endif %}">
+        <div class="card-header">
+            <h5 class="card-title mb-0">2. Personalizza Componenti (opzionale)</h5>
+        </div>
+        <div class="card-body" id="componenti-container">
+            </div>
+
+        <div class="card-footer text-muted">
+            <div class="d-flex justify-content-between align-items-center">
+                <small>Modifica un colore o aggiungi un componente per creare una variante del modello.</small>
+                <button type="button" id="add-componente-form" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus"></i> Aggiungi Componente
+                </button>
+            </div>
+        </div>
+    </div>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h5 class="card-title">3. Quantità per Taglia</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead><tr>
+                            {% for field in quantita_form %}<th class="text-center">{{ field.label_tag }}</th>{% endfor %}
+                        </tr></thead>
+                        <tbody><tr>
+                            {% for field in quantita_form %}
+                                <td>{{ field }} {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>{% endif %}</td>
+                            {% endfor %}
+                        </tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-save"></i> Salva Ordine
+            </button>
+        </div>
+    </form>
+</div>
 {% endblock %}
