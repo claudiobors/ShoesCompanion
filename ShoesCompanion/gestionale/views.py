@@ -872,6 +872,17 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER
 
 
+# In gestional/views.py
+
+# 1. AGGIUNGI 'landscape' AGLI IMPORT DI REPORTLAB
+from reportlab.lib.pagesizes import A4, landscape
+# Aggiungi 'ceil' agli import all'inizio del file
+from math import ceil
+
+
+# Aggiungi 'Image' agli import di reportlab
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
+
 class GeneraBolleView(LoginRequiredMixin, FormView):
     form_class = BollaSplitForm
     template_name = 'gestionale/ordini/genera_bolle_form.html'
@@ -889,51 +900,109 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
         dettagli = ordine.dettagli.all()
         bolle_distribuite = crea_distribuzione_bolle(dettagli, max_totale, max_per_taglia)
 
-        # Creazione del PDF
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
         styles = getSampleStyleSheet()
+        style_bold = ParagraphStyle(name='Bold', parent=styles['Normal'], fontName='Helvetica-Bold')
+        
         elements = []
         
         total_bolle = len(bolle_distribuite)
+        componenti_del_modello = list(ordine.modello.componenti.select_related('nome_componente', 'colore').all())
+
         for i, bolla in enumerate(bolle_distribuite, 1):
-            # Informazioni di intestazione
-            elements.append(Paragraph(f"Bolla di Lavoro {i} di {total_bolle}", styles['h1']))
-            elements.append(Spacer(1, 0.5*cm))
+            # --- 1. TITOLO RIDOTTO (usando h2 invece di h1) ---
+            elements.append(Paragraph(f"Bolla di Lavoro {i} di {total_bolle}", styles['h2']))
+            
+            # --- 2. NUOVA INTESTAZIONE A DUE COLONNE (DATI + FOTO) ---
+            # Colonna sinistra: Dati
             info_data = [
-                ['Cliente:', ordine.modello.cliente.nome],
-                ['Modello:', ordine.modello.nome],
-                ['Data Ordine:', ordine.data_ordine.strftime('%d/%m/%Y')],
+                [Paragraph('<b>Cliente:</b>', styles['Normal']), Paragraph(ordine.modello.cliente.nome, styles['Normal'])],
+                [Paragraph('<b>Modello:</b>', styles['Normal']), Paragraph(ordine.modello.nome, styles['Normal'])],
+                [Paragraph('<b>Data Ordine:</b>', styles['Normal']), Paragraph(ordine.data_ordine.strftime('%d/%m/%Y'), styles['Normal'])],
             ]
-            info_table = Table(info_data, colWidths=[3*cm, None])
-            info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-            elements.append(info_table)
-            elements.append(Spacer(1, 1*cm))
+            info_table_sx = Table(info_data, colWidths=[3*cm, 7*cm])
+            info_table_sx.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
 
-            # Tabella quantità per la bolla corrente
-            table_data = [["Taglia", "Quantità"]]
-            quantita_totale_bolla = 0
+            # Colonna destra: Immagine
+            if ordine.modello.foto:
+                try:
+                    immagine = Image(ordine.modello.foto.path, width=4*cm, height=4*cm)
+                except Exception:
+                    immagine = Paragraph("Immagine non trovata", styles['Normal'])
+            else:
+                immagine = Paragraph("Nessuna foto", styles['Normal'])
             
-            # Ordina le taglie per numero
+            # Tabella contenitore per allineare dati e immagine
+            header_table = Table([[info_table_sx, immagine]], colWidths=[11*cm, None])
+            header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+            elements.append(header_table)
+            elements.append(Spacer(1, 0.8*cm))
+
+            # --- Tabella Quantità per Taglia (invariata) ---
+            elements.append(Paragraph("Riepilogo Paia", styles['h2']))
             taglie_ordinate = sorted(bolla.keys(), key=lambda t: t.numero)
+            
+            header_row = [Paragraph(str(t.numero), style_bold) for t in taglie_ordinate]
+            quantita_row = [Paragraph(str(bolla[t]), styles['Normal']) for t in taglie_ordinate]
+            quantita_totale_bolla = sum(bolla.values())
 
-            for taglia in taglie_ordinate:
-                quantita = bolla[taglia]
-                table_data.append([str(taglia.numero), str(quantita)])
-                quantita_totale_bolla += quantita
-            
-            table_data.append(["TOTALE", f"{quantita_totale_bolla}"])
-            
+            header_row.append(Paragraph("TOTALE", style_bold))
+            quantita_row.append(Paragraph(str(quantita_totale_bolla), style_bold))
+
+            table_data = [header_row, quantita_row]
             bolla_table = Table(table_data)
             bolla_table.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
                 ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                 ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ]))
             elements.append(bolla_table)
 
+            # --- 3. NUOVA SEZIONE MATERIALI CON SPAZIO E TESTO PICCOLO ---
+            elements.append(Spacer(1, 1*cm))
+            elements.append(Paragraph("Distinta Materiali", styles['h2']))
+
+            num_righe = ceil(len(componenti_del_modello) / 2)
+            colonna_sx_comp = componenti_del_modello[:num_righe]
+            colonna_dx_comp = componenti_del_modello[num_righe:]
+            
+            style_header_mat = ParagraphStyle(name='MatHeader', parent=style_bold, fontSize=9)
+            style_body_mat = ParagraphStyle(name='MatBody', parent=styles['Normal'], fontSize=8)
+
+            # Crea i dati per la tabella di sinistra
+            materiali_sx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
+            for comp in colonna_sx_comp:
+                colore = comp.colore.nome if comp.colore else "Non specificato"
+                materiali_sx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
+            
+            # Crea i dati per la tabella di destra
+            materiali_dx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
+            for comp in colonna_dx_comp:
+                colore = comp.colore.nome if comp.colore else "Non specificato"
+                materiali_dx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
+
+            # Crea le due tabelle separate
+            table_sx = Table(materiali_sx_data, colWidths=[6*cm, 6*cm])
+            table_dx = Table(materiali_dx_data, colWidths=[6*cm, 6*cm])
+            
+            common_style = TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.darkgrey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                ('TOPPADDING', (0,0), (-1,-1), 5),
+            ])
+            table_sx.setStyle(common_style)
+            table_dx.setStyle(common_style)
+
+            # Metti le due tabelle in una tabella contenitore per allinearle con uno spazio
+            container_table = Table([[table_sx, table_dx]], colWidths=[12.5*cm, 12.5*cm])
+            container_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+            elements.append(container_table)
+            
             if i < total_bolle:
                 elements.append(PageBreak())
 
