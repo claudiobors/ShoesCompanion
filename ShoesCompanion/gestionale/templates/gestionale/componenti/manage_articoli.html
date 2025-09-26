@@ -1,41 +1,36 @@
 {% extends 'gestionale/base.html' %}
+{% load crispy_forms_tags %}
 {% load static %}
 
 {% block title %}
-    Gestione Superfici per {{ componente.nome_componente.nome }}
+    Gestione Misure per {{ componente.nome_componente.nome }}
 {% endblock %}
 
 {% block extra_css %}
 <style>
-
-    .select2-container--open {
-        z-index: 9999 !important;
+    /* Stile per dare un feedback visivo quando una riga è marcata per l'eliminazione */
+    .form-row-delete {
+        opacity: 0.6;
+        background-color: #f8d7da !important;
+        border-color: #f5c2c7 !important;
     }
-
-    .articolo-form {
-        padding: 1.5rem 1rem 1rem 1rem;
-        border: 1px solid #dee2e6;
-        border-radius: .375rem;
-        margin-bottom: 1rem;
-        background-color: #f8f9fa;
-        position: relative;
-    }
-    .remove-articolo-btn {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
+    .form-row-delete input, .form-row-delete select {
+        text-decoration: line-through;
     }
 </style>
 {% endblock %}
 
+
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h2 class="mb-0"><i class="fas fa-ruler-combined"></i> Gestione Superfici</h2>
-            <p class="text-muted">
-                Stai definendo la superficie (in metri quadri o piedi quadri) per il componente <strong>{{ componente.nome_componente.nome }}</strong> del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
-            </p>
+    <div class="mb-4">
+        <h2 class="mb-1"><i class="fas fa-ruler-combined"></i> Gestione Misure</h2>
+        <p class="text-muted">
+            Stai definendo le misure per il componente <strong>{{ componente.nome_componente.nome }}</strong> 
+            del modello <strong><a href="{% url 'modello_detail' componente.modello.pk %}">{{ componente.modello.nome }}</a></strong>.
+        </p>
+        <div class="alert alert-info">
+            L'unità di misura per questo componente è: <strong>{{ componente.get_unita_misura_display }}</strong>.
         </div>
     </div>
 
@@ -49,55 +44,65 @@
                     <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
                 {% endif %}
 
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="apply-to-all-checkbox">
+                    <label class="form-check-label" for="apply-to-all-checkbox">
+                        <strong>Applica valore modificato a tutte le righe</strong>
+                    </label>
+                    <small class="form-text text-muted d-block">Utile per componenti con misura unica (es. 1 Tacco per ogni taglia).</small>
+                </div>
+
                 <div id="articoli-formset-container">
                     {% for form in formset %}
-                        <div class="articolo-form">
-                            <div style="display: none;">
-                                {% if form.instance.pk %}{{ form.DELETE }}{% endif %}
-                            </div>
+                        <div class="articolo-form border rounded p-3 mb-3 bg-light">
                             {{ form.id }}
-                            
                             <div class="row align-items-center">
-                                <div class="col-md-3 mb-3">
-                                    <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
-                                    {{ form.taglia }}
-                                    {% if form.taglia.errors %}<div class="invalid-feedback d-block">{{ form.taglia.errors|join:", " }}</div>{% endif %}
+                                <div class="col-md-4">
+                                    {{ form.taglia|as_crispy_field }}
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="{{ form.superficie_mq.id_for_label }}" class="form-label">{{ form.superficie_mq.label }}</label>
-                                    {{ form.superficie_mq }}
-                                    {% if form.superficie_mq.help_text %}<small class="form-text text-muted">{{ form.superficie_mq.help_text }}</small>{% endif %}
-                                    {% if form.superficie_mq.errors %}<div class="invalid-feedback d-block">{{ form.superficie_mq.errors|join:", " }}</div>{% endif %}
-                                </div>
-                                 <div class="col-md-4 mb-3">
-                                    <label for="{{ form.superficie_piedi_quadri.id_for_label }}" class="form-label">{{ form.superficie_piedi_quadri.label }}</label>
-                                    {{ form.superficie_piedi_quadri }}
-                                    {% if form.superficie_piedi_quadri.help_text %}<small class="form-text text-muted">{{ form.superficie_piedi_quadri.help_text }}</small>{% endif %}
-                                    {% if form.superficie_piedi_quadri.errors %}<div class="invalid-feedback d-block">{{ form.superficie_piedi_quadri.errors|join:", " }}</div>{% endif %}
-                                </div>
-                                <div class="col-md-1 mb-3 align-self-center text-center">
-                                    {% if form.instance.pk %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm delete-existing-form-btn">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                
+                                {% if componente.unita_misura == 'SUPERFICIE' %}
+                                    <div class="col-md-3">
+                                        {{ form.superficie_mq|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        {{ form.superficie_piedi_quadri|as_crispy_field }}
+                                    </div>
+                                {% else %}
+                                    <div class="col-md-4">
+                                        {{ form.quantita_unitaria|as_crispy_field }}
+                                    </div>
+                                {% endif %}
+
+                                <div class="col-md-2 text-end align-self-center pt-3">
+                                    {% if form.instance.pk and formset.can_delete %}
+                                        <div style="display: none;">{{ form.DELETE }}</div>
                                     {% endif %}
+                                    <button type="button" class="btn btn-outline-danger remove-row-btn" title="Rimuovi o marca per l'eliminazione">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
 
-                <button type="button" id="add-articolo-form" class="btn btn-outline-success btn-sm mt-2 mb-3">
-                    <i class="fas fa-plus"></i> Aggiungi Riga Taglia/Superficie
-                </button>
+                <div class="btn-group btn-group-sm mt-2 mb-3" role="group">
+                    <button type="button" id="add-articolo-form" class="btn btn-outline-success">
+                        <i class="fas fa-plus"></i> Aggiungi Riga
+                    </button>
+                    <button type="button" id="add-all-missing-sizes-btn" class="btn btn-outline-info">
+                        <i class="fas fa-stream"></i> Aggiungi Taglie Mancanti
+                    </button>
+                </div>
                 
                 <hr>
                 <div class="d-flex justify-content-between">
                     <a href="{% url 'modello_detail' componente.modello.pk %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-check"></i> Fatto, torna al Modello
+                        <i class="fas fa-arrow-left"></i> Torna al Modello
                     </a>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Salva Superfici
+                        <i class="fas fa-save"></i> Salva Misure
                     </button>
                 </div>
             </form>
@@ -106,88 +111,149 @@
 </div>
 
 <template id="empty-articolo-form-template">
-    <div class="articolo-form">
+    <div class="articolo-form border rounded p-3 mb-3 bg-light">
         {% with formset.empty_form as form %}
-            <button type="button" class="btn-close remove-new-form-btn" aria-label="Rimuovi"></button>
             {{ form.id }}
             <div class="row align-items-center">
-                <div class="col-md-3 mb-3">
-                    <label for="{{ form.taglia.id_for_label }}" class="form-label">{{ form.taglia.label }} <span class="text-danger">*</span></label>
-                    {{ form.taglia }}
+                <div class="col-md-4">
+                    {{ form.taglia|as_crispy_field }}
                 </div>
-                <div class="col-md-4 mb-3">
-                    <label for="{{ form.superficie_mq.id_for_label }}" class="form-label">{{ form.superficie_mq.label }}</label>
-                    {{ form.superficie_mq }}
-                    {% if form.superficie_mq.help_text %}<small class="form-text text-muted">{{ form.superficie_mq.help_text }}</small>{% endif %}
+                {% if componente.unita_misura == 'SUPERFICIE' %}
+                    <div class="col-md-3">
+                        {{ form.superficie_mq|as_crispy_field }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.superficie_piedi_quadri|as_crispy_field }}
+                    </div>
+                {% else %}
+                    <div class="col-md-4">
+                        {{ form.quantita_unitaria|as_crispy_field }}
+                    </div>
+                {% endif %}
+                <div class="col-md-2 text-end align-self-center pt-3">
+                    <button type="button" class="btn btn-outline-danger remove-row-btn" title="Rimuovi questa riga">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <label for="{{ form.superficie_piedi_quadri.id_for_label }}" class="form-label">{{ form.superficie_piedi_quadri.label }}</label>
-                    {{ form.superficie_piedi_quadri }}
-                    {% if form.superficie_piedi_quadri.help_text %}<small class="form-text text-muted">{{ form.superficie_piedi_quadri.help_text }}</small>{% endif %}
-                </div>
-                </div>
+            </div>
         {% endwith %}
     </div>
 </template>
 {% endblock %}
 
 {% block extra_js %}
+{{ tutte_le_taglie_js|json_script:"all-sizes-data" }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // ... (la funzione initializeSelect2 rimane invariata) ...
-    function initializeSelect2(element) {
-        $(element).find('select').each(function() {
-            if (!$(this).data('select2')) {
-                $(this).addClass('form-select').select2({
-                    theme: 'bootstrap-5',
-                    placeholder: 'Seleziona una taglia...',
-                    width: '100%'
-                });
-            }
-        });
-    }
-    initializeSelect2(document);
-
     const formsetContainer = document.getElementById('articoli-formset-container');
-    const addButton = document.getElementById('add-articolo-form');
-    const totalFormsInput = document.querySelector('input[name="articoli-TOTAL_FORMS"]');
+    const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
     const template = document.getElementById('empty-articolo-form-template');
+    const allSizesData = JSON.parse(document.getElementById('all-sizes-data').textContent);
+    const SQ_METER_TO_SQ_FOOT = 10.7639;
+    const SQ_FOOT_TO_SQ_METER = 1 / SQ_METER_TO_SQ_FOOT;
 
-    if (addButton) {
-        addButton.addEventListener('click', function() {
-            let formNum = parseInt(totalFormsInput.value);
-            let newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
-            let newDiv = document.createElement('div');
-            newDiv.innerHTML = newFormHtml;
-            const newFormElement = newDiv.firstElementChild; 
-            formsetContainer.appendChild(newFormElement);
-            initializeSelect2(newFormElement);
-            totalFormsInput.value = formNum + 1;
+    function initializeSelect2(element) {
+        $(element).find('select[name$="-taglia"]').each(function() {
+            if (!$(this).data('select2')) {
+                $(this).select2({ theme: 'bootstrap-5', placeholder: 'Seleziona...', width: '100%' });
+            }
         });
     }
 
-    // Aggiungiamo la logica per i pulsanti
-    formsetContainer.addEventListener('click', function(e) {
-        // Pulsante per RIMUOVERE una riga NUOVA (non ancora salvata)
-        if (e.target && e.target.classList.contains('remove-new-form-btn')) {
-            e.target.closest('.articolo-form').remove();
-        }
-        
-        // Pulsante per ELIMINARE una riga ESISTENTE (dal database)
-        if (e.target && e.target.closest('.delete-existing-form-btn')) {
-            const button = e.target.closest('.delete-existing-form-btn');
-            const formRow = button.closest('.articolo-form');
-            
-            // Trova la checkbox DELETE nascosta e selezionala
-            const deleteInput = formRow.querySelector('input[type="checkbox"][name*="-DELETE"]');
-            if (deleteInput) {
-                deleteInput.checked = true;
+    function addNewFormRow() {
+        let formNum = parseInt(totalFormsInput.value);
+        const newFormHtml = template.innerHTML.replace(/__prefix__/g, formNum);
+        const newDiv = document.createElement('div');
+        newDiv.innerHTML = newFormHtml;
+        const newFormElement = newDiv.firstElementChild; 
+        formsetContainer.appendChild(newFormElement);
+        initializeSelect2(newFormElement);
+        totalFormsInput.value = formNum + 1;
+        return newFormElement;
+    }
+
+    document.getElementById('add-articolo-form').addEventListener('click', addNewFormRow);
+    
+    document.getElementById('add-all-missing-sizes-btn').addEventListener('click', function() {
+        const existingSizeIds = new Set();
+        formsetContainer.querySelectorAll('select[name$="-taglia"]').forEach(select => {
+            if (select.value && !select.closest('.articolo-form').classList.contains('form-row-delete')) {
+                existingSizeIds.add(select.value);
             }
-            
-            // Nascondi la riga per un feedback immediato
-            formRow.style.display = 'none';
+        });
+
+        const missingSizes = allSizesData.filter(taglia => !existingSizeIds.has(String(taglia.id)));
+        if (missingSizes.length === 0) {
+            alert("Tutte le taglie disponibili sono già state aggiunte.");
+            return;
+        }
+
+        missingSizes.forEach(taglia => {
+            const newRow = addNewFormRow();
+            const newSelect = newRow.querySelector('select[name$="-taglia"]');
+            $(newSelect).val(taglia.id).trigger('change');
+        });
+        
+        if (document.getElementById('apply-to-all-checkbox').checked) {
+            const firstInput = formsetContainer.querySelector('.articolo-form:not(.form-row-delete) input[type="number"]');
+            if (firstInput) {
+                firstInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
         }
     });
+
+    formsetContainer.addEventListener('click', function(e) {
+        const removeBtn = e.target.closest('.remove-row-btn');
+        if (removeBtn) {
+            const formRow = removeBtn.closest('.articolo-form');
+            const deleteInput = formRow.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = !deleteInput.checked;
+                formRow.classList.toggle('form-row-delete', deleteInput.checked);
+            } else {
+                formRow.remove();
+            }
+        }
+    });
+
+    formsetContainer.addEventListener('input', function(e) {
+        const target = e.target;
+        if (!target.matches('input[type="number"]')) return;
+
+        const row = target.closest('.articolo-form');
+        const sourceValue = target.value;
+        const sourceName = target.getAttribute('name').split('-').pop();
+
+        if (sourceName === 'superficie_mq') {
+            const ft2Input = row.querySelector('input[name$="-superficie_piedi_quadri"]');
+            if (ft2Input) ft2Input.value = sourceValue ? (parseFloat(sourceValue) * SQ_METER_TO_SQ_FOOT).toFixed(4) : '';
+        } else if (sourceName === 'superficie_piedi_quadri') {
+            const mqInput = row.querySelector('input[name$="-superficie_mq"]');
+            if (mqInput) mqInput.value = sourceValue ? (parseFloat(sourceValue) * SQ_FOOT_TO_SQ_METER).toFixed(4) : '';
+        }
+
+        if (document.getElementById('apply-to-all-checkbox').checked) {
+            document.querySelectorAll('.articolo-form:not(.form-row-delete)').forEach(otherRow => {
+                if (otherRow === row) return;
+
+                const inputToUpdate = otherRow.querySelector(`input[name$="-${sourceName}"]`);
+                if (inputToUpdate) {
+                    inputToUpdate.value = sourceValue;
+                    
+                    if (sourceName === 'superficie_mq') {
+                        const otherFt2Input = otherRow.querySelector('input[name$="-superficie_piedi_quadri"]');
+                        if (otherFt2Input) otherFt2Input.value = sourceValue ? (parseFloat(sourceValue) * SQ_METER_TO_SQ_FOOT).toFixed(4) : '';
+                    } else if (sourceName === 'superficie_piedi_quadri') {
+                        const otherMqInput = otherRow.querySelector('input[name$="-superficie_mq"]');
+                        if (otherMqInput) otherMqInput.value = sourceValue ? (parseFloat(sourceValue) * SQ_FOOT_TO_SQ_METER).toFixed(4) : '';
+                    }
+                }
+            });
+        }
+    });
+
+    initializeSelect2(formsetContainer);
 });
 </script>
 {% endblock %}

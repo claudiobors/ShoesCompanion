@@ -7,8 +7,6 @@ from django.contrib.auth import views as auth_views
 # Importa le viste direttamente dalla tua app 'gestionale'
 from gestionale import views
 
-# Non definire 'app_name' in questo file
-# app_name = 'gestionale' # RIMUOVI QUESTA RIGA
 
 urlpatterns = [
     # URL per l'interfaccia di amministrazione

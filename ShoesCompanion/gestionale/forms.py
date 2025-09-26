@@ -1,9 +1,8 @@
 from django import forms
 from django.forms import inlineformset_factory
-from django.core.exceptions import ValidationError
 from .models import (
     Cliente, Modello, Componente, Colore, Ordine, DettaglioOrdine,
-    TipoComponente, Taglia, Articolo
+    TipoComponente, Taglia, Articolo, StrutturaModello
 )
 
 # --- Form Anagrafiche e Configurazione ---
@@ -20,20 +19,25 @@ class ClienteForm(forms.ModelForm):
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
-from .models import Modello, StrutturaModello # Aggiungi StrutturaModello
-
 class ModelloForm(forms.ModelForm):
-    # Aggiungiamo il campo per selezionare la struttura
     struttura = forms.ModelChoiceField(
         queryset=StrutturaModello.objects.all(),
-        required=True,
-        label="Scegli la struttura di base del modello",
-        help_text="Questo pre-compilerà il modello con i componenti standard."
+        required=False,
+        label="Scegli una struttura per pre-compilare i componenti",
+        help_text="Selezionando una struttura, il modello verrà creato con i suoi componenti di base.",
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
     class Meta:
         model = Modello
-        fields = ['cliente', 'nome', 'struttura', 'tipo', 'foto', 'note'] # Aggiungi 'struttura'
+        fields = ['cliente', 'nome', 'struttura', 'tipo', 'foto', 'note']
+        widgets = {
+            'cliente': forms.Select(attrs={'class': 'form-select'}),
+            'nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'foto': forms.FileInput(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
 
 class TipoComponenteForm(forms.ModelForm):
     class Meta:
@@ -50,7 +54,6 @@ class ColoreForm(forms.ModelForm):
         fields = ['nome', 'valore_hex', 'descrizione']
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
-            # Usiamo il widget HTML5 nativo per la selezione del colore
             'valore_hex': forms.TextInput(attrs={'type': 'color', 'class': 'form-control form-control-color'}),
             'descrizione': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
@@ -69,97 +72,52 @@ class TagliaForm(forms.ModelForm):
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
+# --- Form Componenti e Articoli (MODIFICATI) ---
+
 class ComponenteForm(forms.ModelForm):
-    """
-    Form per creare o modificare un Componente associato a un Modello.
-    Il campo 'modello' viene solitamente nascosto o pre-impostato nella vista.
-    """
     class Meta:
         model = Componente
-        fields = ['modello', 'nome_componente', 'colore', 'note']
+        # AGGIUNTO 'unita_misura'
+        fields = ['modello', 'nome_componente', 'unita_misura', 'colore', 'note']
         widgets = {
-            'modello': forms.HiddenInput(), # Nascosto, verrà gestito dalla vista
+            'modello': forms.HiddenInput(),
             'nome_componente': forms.Select(attrs={'class': 'form-select'}),
+            'unita_misura': forms.Select(attrs={'class': 'form-select'}), # AGGIUNTO
             'colore': forms.Select(attrs={'class': 'form-select'}),
-            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
-## Form e Formset per Articolo (Misura)
-
+# MODIFICATO PER ESSERE DINAMICO
 class ArticoloForm(forms.ModelForm):
-    """
-    Form per la singola misura di un componente per una data taglia,
-    con validazione avanzata e widget migliorati.
-    """
     class Meta:
         model = Articolo
-        fields = ['taglia', 'superficie_mq', 'superficie_piedi_quadri']
-
-        # Etichette più chiare per i campi del form
+        fields = ['taglia', 'superficie_mq', 'superficie_piedi_quadri', 'quantita_unitaria']
         labels = {
-            'taglia': 'Taglia',
             'superficie_mq': 'Superficie (m²)',
-            'superficie_piedi_quadri': 'Superficie (Piedi²)',
+            'superficie_piedi_quadri': 'Superficie (ft²)',
+            'quantita_unitaria': 'Quantità',
         }
-
-        # Widget con attributi aggiuntivi per una migliore UX
         widgets = {
             'taglia': forms.Select(attrs={'class': 'form-select form-select-sm'}),
-            'superficie_mq': forms.NumberInput(
-                attrs={
-                    'class': 'form-control form-control-sm text-end',
-                    'placeholder': 'es. 0.1250',
-                    'step': '0.0001'  # Permette incrementi decimali precisi
-                }
-            ),
-            'superficie_piedi_quadri': forms.NumberInput(
-                attrs={
-                    'class': 'form-control form-control-sm text-end',
-                    'placeholder': 'es. 1.3452',
-                    'step': '0.0001'  # Permette incrementi decimali precisi
-                }
-            ),
+            'superficie_mq': forms.NumberInput(attrs={'class': 'form-control form-control-sm text-end', 'placeholder': '0.1250', 'step': '0.0001'}),
+            'superficie_piedi_quadri': forms.NumberInput(attrs={'class': 'form-control form-control-sm text-end', 'placeholder': 'Calcolata in auto', 'step': '0.0001'}),
+            'quantita_unitaria': forms.NumberInput(attrs={'class': 'form-control form-control-sm text-end', 'placeholder': '1.00', 'step': '0.01'}),
         }
-
-        # Testi di aiuto per guidare l'utente
-        help_texts = {
-            'superficie_mq': "Lasciare vuoto se si inseriscono i Piedi Quadrati.",
-            'superficie_piedi_quadri': "Lasciare vuoto se si inseriscono i Metri Quadrati.",
-        }
-
-    def clean(self):
-        """
-        Controlla che almeno uno dei due campi superficie sia stato compilato,
-        fornendo un errore a livello di form se entrambi sono vuoti.
-        """
-        cleaned_data = super().clean()
-        mq = cleaned_data.get('superficie_mq')
-        piedi = cleaned_data.get('superficie_piedi_quadri')
-
-        if mq is None and piedi is None:
-            # Questo errore verrà mostrato in cima al formset, è più generale.
-            raise ValidationError(
-                "È obbligatorio specificare un valore per almeno uno dei due campi di superficie (m² o Piedi²).",
-                code='superficie_richiesta'
-            )
-
-        return cleaned_data
 
 ArticoloFormSet = inlineformset_factory(
     Componente,
     Articolo,
     form=ArticoloForm,
-    fields=('taglia', 'superficie_mq', 'superficie_piedi_quadri'),
+    fields=('taglia', 'superficie_mq', 'superficie_piedi_quadri', 'quantita_unitaria'),
     extra=1,
-    can_delete=True,
-    # min_num=1 # Opzionale: richiede almeno una misura per componente
+    can_delete=True
 )
 
 
-## Form per Ordini
+
+# --- Form e Formset per Ordini ---
 
 class OrdineMainForm(forms.ModelForm):
-    """Form per i dati principali dell'Ordine."""
     class Meta:
         model = Ordine
         fields = ['modello', 'data_ordine', 'stato', 'note']
@@ -171,7 +129,6 @@ class OrdineMainForm(forms.ModelForm):
         }
 
 class DettaglioOrdineForm(forms.ModelForm):
-    """Form per la singola riga di dettaglio di un ordine."""
     class Meta:
         model = DettaglioOrdine
         fields = ['taglia', 'quantita', 'note']
@@ -181,52 +138,37 @@ class DettaglioOrdineForm(forms.ModelForm):
             'note': forms.TextInput(attrs={'class': 'form-control form-control-sm'}),
         }
 
-# Definiamo il Formset per i dettagli dell'ordine
-DettaglioOrdineFormSet = forms.inlineformset_factory(
+DettaglioOrdineFormSet = inlineformset_factory(
     Ordine,
     DettaglioOrdine,
     form=DettaglioOrdineForm,
-    extra=1, # Parte con 1 form vuoto
-    can_delete=True, # Permette di eliminare i dettagli esistenti
-    min_num=1, # Richiede che ci sia almeno una riga di dettaglio
+    extra=1,
+    can_delete=True,
+    min_num=1
 )
 
 class QuantitaPerTagliaForm(forms.Form):
-    """
-    Un form che crea dinamicamente un campo per la quantità per ogni taglia.
-    """
     def __init__(self, *args, **kwargs):
-        # Rimuove 'instance' se presente, non ci serve per questo form
-        kwargs.pop('instance', None) 
-        
+        kwargs.pop('instance', None)
         super().__init__(*args, **kwargs)
-        
-        # Recupera tutte le taglie ordinate per numero
         taglie = Taglia.objects.all().order_by('numero')
-
-        # Per ogni taglia, crea un campo numerico nel form
         for taglia in taglie:
-            field_name = f'taglia_{taglia.pk}'
-            self.fields[field_name] = forms.IntegerField(
-                label=f"Taglia {taglia.numero}",
+            self.fields[f'taglia_{taglia.pk}'] = forms.IntegerField(
+                label=f"T. {taglia}",
                 required=False,
                 min_value=0,
+                initial=0,
                 widget=forms.NumberInput(attrs={
-                    'class': 'form-control form-control-sm text-center', 
+                    'class': 'form-control form-control-sm text-center',
                     'placeholder': '0',
                     'min': '0'
-                }),
-                initial=0
+                })
             )
 
     def get_dettagli_data(self):
-        """
-        Metodo helper per estrarre i dati delle quantità inserite.
-        """
         for name, value in self.cleaned_data.items():
-            if name.startswith('taglia_') and value is not None and value > 0:
-                taglia_id = int(name.split('_')[1])
-                yield (taglia_id, value)
+            if name.startswith('taglia_') and value and value > 0:
+                yield (int(name.split('_')[1]), value)
 
 class StrutturaModelloForm(forms.ModelForm):
     class Meta:
@@ -237,22 +179,17 @@ class StrutturaModelloForm(forms.ModelForm):
             'tipi_componente': forms.CheckboxSelectMultiple,
         }
         help_texts = {
-            'tipi_componente': "Seleziona tutti i componenti che devono essere creati di base per questa struttura."
+            'tipi_componente': "Seleziona i componenti base per questa struttura."
         }
 
-from django.forms import inlineformset_factory
-
+# AGGIORNATO il FormSet per includere il nuovo campo
 ComponentePerOrdineFormSet = inlineformset_factory(
     Modello,
     Componente,
-    fields=('nome_componente', 'colore', 'note'),
-    extra=1, # MODIFICATO: Permette di aggiungere nuove righe
-    can_delete=True, # AGGIUNTO: Permette di eliminare le righe
-    widgets={
-        'nome_componente': forms.Select(attrs={'class': 'form-select form-select-sm'}),
-        'colore': forms.Select(attrs={'class': 'form-select form-select-sm'}),
-        'note': forms.Textarea(attrs={'class': 'form-control form-control-sm', 'rows': 1}),
-    }
+    form=ComponenteForm,
+    fields=('nome_componente', 'unita_misura', 'colore', 'note'),
+    extra=1,
+    can_delete=True
 )
 
 class BollaSplitForm(forms.Form):

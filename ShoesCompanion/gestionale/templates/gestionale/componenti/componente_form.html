@@ -1,5 +1,5 @@
 {% extends 'gestionale/base.html' %}
-{% load static %}
+{% load crispy_forms_tags %}
 
 {% block title %}
     {% if form.instance.pk %}
@@ -32,31 +32,28 @@
                             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
                         {% endif %}
 
-                        <div class="mb-3">
-                            <label for="{{ form.modello.id_for_label }}" class="form-label">{{ form.modello.label }} <span class="text-danger">*</span></label>
-                            {{ form.modello }}
-                            {% if form.modello.errors %}<div class="invalid-feedback d-block">{{ form.modello.errors }}</div>{% endif %}
+                        {{ form.modello }} {# Manteniamo il campo modello nascosto #}
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                {{ form.nome_componente|as_crispy_field }}
+                                <small class="form-text text-muted">Non trovi il tipo? <a href="{% url 'tipocomponente_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
+                            </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.nome_componente.id_for_label }}" class="form-label">{{ form.nome_componente.label }} <span class="text-danger">*</span></label>
-                                {{ form.nome_componente }}
-                                {% if form.nome_componente.errors %}<div class="invalid-feedback d-block">{{ form.nome_componente.errors }}</div>{% endif %}
-                                <small class="form-text text-muted">Non trovi il tipo? <a href="{% url 'tipocomponente_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
+                                {# ECCO IL CAMPO AGGIUNTO #}
+                                {{ form.unita_misura|as_crispy_field }}
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="{{ form.colore.id_for_label }}" class="form-label">{{ form.colore.label }}</label>
-                                {{ form.colore }}
-                                {% if form.colore.errors %}<div class="invalid-feedback d-block">{{ form.colore.errors }}</div>{% endif %}
+                                {{ form.colore|as_crispy_field }}
                                 <small class="form-text text-muted">Non trovi il colore? <a href="{% url 'colore_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label }}</label>
-                            {{ form.note }}
-                            {% if form.note.errors %}<div class="invalid-feedback d-block">{{ form.note.errors }}</div>{% endif %}
+                            {{ form.note|as_crispy_field }}
                         </div>
 
                         <hr>

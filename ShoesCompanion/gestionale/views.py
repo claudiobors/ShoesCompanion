@@ -200,18 +200,29 @@ class ComponenteDeleteView(LoginRequiredMixin, generic.DeleteView):
 @login_required
 def manage_articoli_componente(request, componente_id):
     componente = get_object_or_404(Componente.objects.select_related('modello'), pk=componente_id)
-
+    
     if request.method == 'POST':
         formset = ArticoloFormSet(request.POST, instance=componente, prefix='articoli')
         if formset.is_valid():
             formset.save()
+            messages.success(request, "Misure salvate con successo.")
             return redirect('modello_detail', pk=componente.modello.pk)
+        else:
+            messages.error(request, "Errore nella compilazione dei dati. Controlla i campi evidenziati.")
     else:
         formset = ArticoloFormSet(instance=componente, prefix='articoli')
         
-    context = {'formset': formset, 'componente': componente}
-    return render(request, 'gestionale/componenti/manage_articoli.html', context)
+    # NUOVA LOGICA: Passiamo al template la lista di tutte le taglie
+    tutte_le_taglie = Taglia.objects.all().order_by('numero')
+    # Convertiamo i dati in un formato leggibile da JavaScript
+    taglie_data_for_js = [{'id': t.id, 'numero': str(t)} for t in tutte_le_taglie]
 
+    context = {
+        'formset': formset, 
+        'componente': componente,
+        'tutte_le_taglie_js': taglie_data_for_js # NUOVO DATO PER IL TEMPLATE
+    }
+    return render(request, 'gestionale/componenti/manage_articoli.html', context)
 
 # --- Viste Ordine ---
 class OrdineListView(LoginRequiredMixin, generic.ListView):
@@ -911,11 +922,8 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
         componenti_del_modello = list(ordine.modello.componenti.select_related('nome_componente', 'colore').all())
 
         for i, bolla in enumerate(bolle_distribuite, 1):
-            # --- 1. TITOLO RIDOTTO (usando h2 invece di h1) ---
             elements.append(Paragraph(f"Bolla di Lavoro {i} di {total_bolle}", styles['h2']))
             
-            # --- 2. NUOVA INTESTAZIONE A DUE COLONNE (DATI + FOTO) ---
-            # Colonna sinistra: Dati
             info_data = [
                 [Paragraph('<b>Cliente:</b>', styles['Normal']), Paragraph(ordine.modello.cliente.nome, styles['Normal'])],
                 [Paragraph('<b>Modello:</b>', styles['Normal']), Paragraph(ordine.modello.nome, styles['Normal'])],
@@ -924,7 +932,6 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
             info_table_sx = Table(info_data, colWidths=[3*cm, 7*cm])
             info_table_sx.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
 
-            # Colonna destra: Immagine
             if ordine.modello.foto:
                 try:
                     immagine = Image(ordine.modello.foto.path, width=4*cm, height=4*cm)
@@ -933,17 +940,19 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
             else:
                 immagine = Paragraph("Nessuna foto", styles['Normal'])
             
-            # Tabella contenitore per allineare dati e immagine
             header_table = Table([[info_table_sx, immagine]], colWidths=[11*cm, None])
             header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
             elements.append(header_table)
             elements.append(Spacer(1, 0.8*cm))
 
-            # --- Tabella Quantità per Taglia (invariata) ---
             elements.append(Paragraph("Riepilogo Paia", styles['h2']))
             taglie_ordinate = sorted(bolla.keys(), key=lambda t: t.numero)
             
-            header_row = [Paragraph(str(t.numero), style_bold) for t in taglie_ordinate]
+            # --- RIGA MODIFICATA ---
+            # Usiamo str(t) invece di str(t.numero) per invocare il nostro __str__ personalizzato
+            header_row = [Paragraph(str(t), style_bold) for t in taglie_ordinate]
+            # --- FINE RIGA MODIFICATA ---
+            
             quantita_row = [Paragraph(str(bolla[t]), styles['Normal']) for t in taglie_ordinate]
             quantita_totale_bolla = sum(bolla.values())
 
@@ -960,10 +969,10 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
             ]))
             elements.append(bolla_table)
 
-            # --- 3. NUOVA SEZIONE MATERIALI CON SPAZIO E TESTO PICCOLO ---
+            # ... resto della vista invariato ...
             elements.append(Spacer(1, 1*cm))
             elements.append(Paragraph("Distinta Materiali", styles['h2']))
-
+            
             num_righe = ceil(len(componenti_del_modello) / 2)
             colonna_sx_comp = componenti_del_modello[:num_righe]
             colonna_dx_comp = componenti_del_modello[num_righe:]
@@ -971,19 +980,16 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
             style_header_mat = ParagraphStyle(name='MatHeader', parent=style_bold, fontSize=9)
             style_body_mat = ParagraphStyle(name='MatBody', parent=styles['Normal'], fontSize=8)
 
-            # Crea i dati per la tabella di sinistra
             materiali_sx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
             for comp in colonna_sx_comp:
                 colore = comp.colore.nome if comp.colore else "Non specificato"
                 materiali_sx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
             
-            # Crea i dati per la tabella di destra
             materiali_dx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
             for comp in colonna_dx_comp:
                 colore = comp.colore.nome if comp.colore else "Non specificato"
                 materiali_dx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
 
-            # Crea le due tabelle separate
             table_sx = Table(materiali_sx_data, colWidths=[6*cm, 6*cm])
             table_dx = Table(materiali_dx_data, colWidths=[6*cm, 6*cm])
             
@@ -998,7 +1004,6 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
             table_sx.setStyle(common_style)
             table_dx.setStyle(common_style)
 
-            # Metti le due tabelle in una tabella contenitore per allinearle con uno spazio
             container_table = Table([[table_sx, table_dx]], colWidths=[12.5*cm, 12.5*cm])
             container_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
             elements.append(container_table)
