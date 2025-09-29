@@ -1,115 +1,148 @@
 {% extends 'gestionale/base.html' %}
-{% block extra_js %}
-<script>
-$(document).ready(function() {
-    const modelloSelect = $('select[name="modello"]');
-    const componentiContainer = $('#componenti-container');
-    const componentiWrapper = $('#componenti-wrapper');
-
-    // Funzione per caricare i componenti base via AJAX
-    modelloSelect.on('change', function() {
-        const modelloId = $(this).val();
-        if (modelloId) {
-            const url = `/api/modello/${modelloId}/componenti/`;
-            componentiContainer.html('<p class="text-center text-muted">Caricamento componenti...</p>');
-            componentiWrapper.removeClass('d-none');
-            $.get(url, function(data) {
-                componentiContainer.html(data);
-            }).fail(function() {
-                componentiContainer.html('<p class="text-center text-danger">Errore nel caricamento dei componenti.</p>');
-            });
-        } else {
-            componentiContainer.html('');
-            componentiWrapper.addClass('d-none');
-        }
-    });
-
-    // Funzione per aggiungere una nuova riga componente
-    $('#componenti-wrapper').on('click', '#add-componente-form', function() {
-        const formContainer = $('#componenti-forms-container');
-        const totalFormsInput = $('input[name="componenti-TOTAL_FORMS"]');
-        const template = $('#empty-componente-form-template');
-        
-        let formNum = parseInt(totalFormsInput.val());
-        let newFormHtml = template.html().replace(/__prefix__/g, formNum);
-
-        formContainer.append(newFormHtml);
-        totalFormsInput.val(formNum + 1);
-    });
-
-    // Funzione per rimuovere una riga componente aggiunta
-    $('#componenti-wrapper').on('click', '.remove-componente-btn', function() {
-        $(this).closest('.componente-form-row').find('input[name*="-DELETE"]').prop('checked', true);
-        $(this).closest('.componente-form-row').hide();
-    });
-
-    // Se la pagina è stata ricaricata per un errore, riesegui la logica
-    if (modelloSelect.val()) {
-        modelloSelect.trigger('change');
-    }
-});
-</script>
-{% endblock %}
-
-
 {% load crispy_forms_tags %}
 
-{% block title %}Nuovo Ordine{% endblock %}
+{% block title %}
+    {% if object %}Modifica Ordine{% else %}Crea Nuovo Ordine{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2><i class="fas fa-plus-circle"></i> Crea Nuovo Ordine</h2>
+    <h2><i class="fas {% if object %}fa-edit{% else %}fa-plus-circle{% endif %}"></i> {% if object %}Modifica Ordine{% else %}Crea Nuovo Ordine{% endif %}</h2>
     <hr>
     
-    <form method="post">
+    <form method="post" id="ordine-form">
         {% csrf_token %}
-        <div class="card shadow-sm">
+
+        {% if form.non_field_errors or componenti_formset.non_form_errors or quantita_form.non_field_errors %}
+        <div class="alert alert-danger">
+            <p><strong>Sono stati riscontrati i seguenti errori:</strong></p>
+            <ul>
+                {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+                {% for error in componenti_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+                {% for error in quantita_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">1. Dati Principali e Scelta Modello</h5></div>
             <div class="card-body">
-                <h5 class="card-title">1. Dati Principali e Scelta Modello</h5>
                 {{ form|crispy }}
             </div>
         </div>
 
-        <div id="componenti-wrapper" class="card shadow-sm mt-4 {% if not form.instance.modello_id %}d-none{% endif %}">
-        <div class="card-header">
-            <h5 class="card-title mb-0">2. Personalizza Componenti (opzionale)</h5>
-        </div>
-        <div class="card-body" id="componenti-container">
+        <div id="componenti-wrapper" class="card shadow-sm mb-4 {% if not form.instance.modello_id and not form.data.modello %}d-none{% endif %}">
+            <div class="card-header"><h5 class="mb-0">2. Personalizza Componenti (opzionale)</h5></div>
+            <div class="card-body" id="componenti-container">
+                {% if componenti_formset %}
+                    {# Questo verrà popolato da AJAX #}
+                {% endif %}
             </div>
-
-        <div class="card-footer text-muted">
-            <div class="d-flex justify-content-between align-items-center">
-                <small>Modifica un colore o aggiungi un componente per creare una variante del modello.</small>
-                <button type="button" id="add-componente-form" class="btn btn-success btn-sm">
-                    <i class="fas fa-plus"></i> Aggiungi Componente
-                </button>
+            <div class="card-footer text-muted">
+                <small>Modifica un colore o aggiungi/rimuovi un componente per creare una variante del modello solo per questo ordine.</small>
             </div>
         </div>
-    </div>
 
         <div class="card shadow-sm mt-4">
+            <div class="card-header"><h5 class="mb-0">3. Quantità per Taglia</h5></div>
             <div class="card-body">
-                <h5 class="card-title">3. Quantità per Taglia</h5>
+                {% if quantita_form.non_field_errors %}
+                    <div class="alert alert-danger">{{ quantita_form.non_field_errors }}</div>
+                {% endif %}
                 <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead><tr>
-                            {% for field in quantita_form %}<th class="text-center">{{ field.label_tag }}</th>{% endfor %}
-                        </tr></thead>
-                        <tbody><tr>
-                            {% for field in quantita_form %}
-                                <td>{{ field }} {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>{% endif %}</td>
-                            {% endfor %}
-                        </tr></tbody>
+                    <table class="table table-bordered text-center">
+                        <thead>
+                            <tr>
+                                {% for field in quantita_form %}
+                                    <th>{{ field.label_tag }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                {% for field in quantita_form %}
+                                    <td>
+                                        {{ field }}
+                                        {% for error in field.errors %}
+                                            <div class="invalid-feedback d-block">{{ error }}</div>
+                                        {% endfor %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
         <div class="mt-4 d-flex justify-content-end">
+            <a href="{% url 'ordine_list' %}" class="btn btn-outline-secondary me-2">Annulla</a>
             <button type="submit" class="btn btn-primary btn-lg">
                 <i class="fas fa-save"></i> Salva Ordine
             </button>
         </div>
     </form>
 </div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    const modelloSelect = $('#id_modello');
+    const componentiContainer = $('#componenti-container');
+    const componentiWrapper = $('#componenti-wrapper');
+
+    // Funzione per caricare i componenti via AJAX
+    function loadComponents() {
+        const modelloId = modelloSelect.val();
+        if (modelloId) {
+            const url = `/api/modello/${modelloId}/componenti/`;
+            componentiContainer.html('<p class="text-center text-muted">Caricamento...</p>');
+            componentiWrapper.removeClass('d-none');
+            
+            $.get(url, function(data) {
+                componentiContainer.html(data);
+                componentiContainer.find('select').select2({ theme: 'bootstrap-5' });
+            }).fail(function() {
+                componentiContainer.html('<p class="text-center text-danger">Errore nel caricamento.</p>');
+            });
+        } else {
+            componentiContainer.html('');
+            componentiWrapper.addClass('d-none');
+        }
+    }
+
+    // Attiva il caricamento al cambio del modello
+    modelloSelect.on('change', loadComponents);
+    
+    // Se un modello è già selezionato al caricamento della pagina (es. in caso di errore di validazione),
+    // carica i componenti.
+    if (modelloSelect.val()) {
+        loadComponents();
+    }
+
+    // Aggiungi una nuova riga
+    componentiContainer.on('click', '.add-row-btn', function() {
+        const totalFormsInput = $('#id_componenti-TOTAL_FORMS');
+        let formIdx = parseInt(totalFormsInput.val());
+        const emptyFormHtml = $('#empty-form-template').html().replace(/__prefix__/g, formIdx);
+        $('#formset-container').append(emptyFormHtml);
+        totalFormsInput.val(formIdx + 1);
+        $('#formset-container .componente-form-row:last').find('select').select2({ theme: 'bootstrap-5' });
+    });
+
+    // Rimuovi una riga
+    componentiContainer.on('click', '.remove-row-btn', function() {
+        const formRow = $(this).closest('.componente-form-row');
+        const deleteInput = formRow.find('input[name$="-DELETE"]');
+        if (deleteInput.length && deleteInput.val() !== 'on') {
+            deleteInput.prop('checked', true);
+            formRow.hide();
+        } else {
+            formRow.remove();
+        }
+    });
+});
+</script>
 {% endblock %}

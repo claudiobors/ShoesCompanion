@@ -257,11 +257,16 @@ class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Se i form non sono già nel contesto, li aggiungiamo (caso GET)
         if 'componenti_formset' not in context:
-            context['componenti_formset'] = ComponentePerOrdineFormSet(prefix='componenti', queryset=Componente.objects.none())
+            modello_id = self.request.POST.get('modello') if self.request.method == 'POST' else None
+            if modello_id:
+                modello = get_object_or_404(Modello, pk=modello_id)
+                context['componenti_formset'] = ComponentePerOrdineFormSet(self.request.POST or None, instance=modello, prefix='componenti')
+            else:
+                context['componenti_formset'] = ComponentePerOrdineFormSet(prefix='componenti', queryset=Componente.objects.none())
+
         if 'quantita_form' not in context:
-            context['quantita_form'] = QuantitaPerTagliaForm(prefix='quantita')
+            context['quantita_form'] = QuantitaPerTagliaForm(self.request.POST or None, prefix='quantita')
         return context
 
     def post(self, request, *args, **kwargs):
@@ -269,49 +274,101 @@ class OrdineCreateView(LoginRequiredMixin, generic.CreateView):
         form = self.get_form()
         quantita_form = QuantitaPerTagliaForm(request.POST, prefix='quantita')
         
-        # Il formset dei componenti dipende dal modello selezionato nel POST
         modello_id = request.POST.get('modello')
         if not modello_id:
             form.add_error('modello', 'Questo campo è obbligatorio.')
-            return self.form_invalid(form, None, quantita_form)
+            componenti_formset = ComponentePerOrdineFormSet(prefix='componenti', queryset=Componente.objects.none())
+            return self.form_invalid(form=form, componenti_formset=componenti_formset, quantita_form=quantita_form)
         
         modello_base = get_object_or_404(Modello, pk=modello_id)
         componenti_formset = ComponentePerOrdineFormSet(request.POST, instance=modello_base, prefix='componenti')
 
-        if form.is_valid() and componenti_formset.is_valid() and quantita_form.is_valid():
+        is_main_form_valid = form.is_valid()
+        is_componenti_valid = componenti_formset.is_valid()
+        is_quantita_valid = quantita_form.is_valid()
+
+        if is_main_form_valid and is_componenti_valid and is_quantita_valid:
+            # Se tutto è valido, procedi al salvataggio
             return self.form_valid(form, modello_base, componenti_formset, quantita_form)
         else:
+            # =======================================================================
+            # BLOCCO DI DEBUG: Eseguito se almeno un form ha errori
+            # =======================================================================
+            print("\n" + "="*50)
+            print("DEBUG: VALIDAZIONE FALLITA. L'ordine non sarà salvato.")
+            print("="*50)
+
+            if not is_main_form_valid:
+                print("❌ Errori nel Form Principale (OrdineMainForm):")
+                print(form.errors.as_json())
+
+            if not is_componenti_valid:
+                print("❌ Errori nel Formset dei Componenti (ComponentePerOrdineFormSet):")
+                # Stampa errori specifici per ogni riga del formset
+                print("   Errori per riga:", componenti_formset.errors)
+                # Stampa errori generali del formset (es. Management Form mancante)
+                print("   Errori generali:", componenti_formset.non_form_errors())
+
+            if not is_quantita_valid:
+                print("❌ Errori nel Form delle Quantità (QuantitaPerTagliaForm):")
+                print(quantita_form.errors.as_json())
+            
+            print("="*50 + "\n")
+            # =======================================================================
+
+            # Chiama form_invalid per ricaricare la pagina con gli errori
             return self.form_invalid(form, componenti_formset, quantita_form)
 
     def form_valid(self, form, modello_base, componenti_formset, quantita_form):
-        # La logica di form_valid che hai già scritto va qui...
-        # (quella che controlla .has_changed(), duplica il modello, etc.)
-        # ...assicurati che sia identica a quella della risposta precedente...
-        modello_per_ordine = modello_base
+        try:
+            with transaction.atomic():
+                modello_per_ordine = modello_base
 
-        if componenti_formset.has_changed():
-            nome_variante = f"{modello_base.nome} - V.{timezone.now().strftime('%y%m%d-%H%M')}"
-            modello_variante = modello_base.duplicate(new_name=nome_variante, created_by=self.request.user)
-            componenti_modificati = ComponentePerOrdineFormSet(self.request.POST, instance=modello_variante, prefix='componenti')
-            if componenti_modificati.is_valid():
-                componenti_modificati.save()
-            modello_per_ordine = modello_variante
-            messages.info(self.request, f"Creata una nuova variante del modello: '{nome_variante}'")
+                # Se l'utente ha modificato i componenti, crea una variante del modello.
+                if componenti_formset.has_changed():
+                    nome_variante = f"{modello_base.nome} - V.{timezone.now().strftime('%y%m%d-%H%M')}"
+                    
+                    # Duplica il modello. La funzione duplicate() già copia i componenti base.
+                    modello_per_ordine = modello_base.duplicate(new_name=nome_variante, created_by=self.request.user)
+                    
+                    # Associa il formset al NUOVO modello e salva le modifiche
+                    componenti_formset.instance = modello_per_ordine
+                    componenti_formset.save()
+                    
+                    messages.info(self.request, f"Creata una nuova variante del modello: '{nome_variante}'")
 
-        ordine = form.save(commit=False)
-        ordine.modello = modello_per_ordine
-        ordine.created_by = self.request.user
-        ordine.save()
-        
-        for taglia_id, quantita in quantita_form.get_dettagli_data():
-            DettaglioOrdine.objects.create(ordine=ordine, taglia_id=taglia_id, quantita=quantita)
-            
-        messages.success(self.request, f"Ordine #{ordine.id} creato con successo.")
-        return redirect(reverse('ordine_detail', kwargs={'pk': ordine.pk}))
+                # Crea l'ordine principale
+                ordine = form.save(commit=False)
+                ordine.modello = modello_per_ordine
+                ordine.created_by = self.request.user
+                ordine.save()
+                form.save_m2m() # Necessario se il form avesse campi many-to-many
+
+                # Crea i dettagli dell'ordine (quantità per taglia)
+                dettagli_creati_count = 0
+                for taglia_id, quantita in quantita_form.get_dettagli_data():
+                    if quantita > 0:
+                        DettaglioOrdine.objects.create(ordine=ordine, taglia_id=taglia_id, quantita=quantita)
+                        dettagli_creati_count += 1
+                
+                # Se non sono state inserite quantità, annulla tutto e mostra un errore.
+                if dettagli_creati_count == 0:
+                    raise ValueError("È necessario specificare la quantità per almeno una taglia.")
+
+                messages.success(self.request, f"Ordine #{ordine.id} creato con successo.")
+                return redirect(reverse('ordine_detail', kwargs={'pk': ordine.pk}))
+
+        except ValueError as e:
+            # Cattura l'errore specifico se non ci sono quantità
+            messages.error(self.request, str(e))
+            return self.form_invalid(form, componenti_formset, quantita_form)
+        except Exception as e:
+            # Cattura altri errori imprevisti
+            messages.error(self.request, f"Si è verificato un errore imprevisto: {e}")
+            return self.form_invalid(form, componenti_formset, quantita_form)
 
     def form_invalid(self, form, componenti_formset, quantita_form):
-        # Questo metodo ora si assicura che tutti i form (con i loro dati ed errori)
-        # vengano passati correttamente al template per la visualizzazione.
+        messages.error(self.request, "Errore nella compilazione del modulo. Controlla i campi.")
         context = self.get_context_data(form=form, componenti_formset=componenti_formset, quantita_form=quantita_form)
         return self.render_to_response(context)
 
@@ -630,7 +687,7 @@ def report_dashboard(request):
 def _pdf_base_elements(title_text):
     """Funzione helper per creare stili e titolo comuni per i PDF."""
     styles = getSampleStyleSheet()
-    style_title = ParagraphStyle(name='Title', fontSize=20, alignment=TA_CENTER, spaceBottom=20, fontName='Helvetica-Bold')
+    style_title = ParagraphStyle(name='Title', fontSize=15, alignment=TA_CENTER, spaceBottom=50, fontName='Helvetica-Bold')
     style_heading = ParagraphStyle(name='Heading2', fontSize=14, fontName='Helvetica-Bold', spaceBefore=12, spaceAfter=6)
     
     elements = [Paragraph(title_text, style_title)]
@@ -638,50 +695,99 @@ def _pdf_base_elements(title_text):
 
 @login_required
 def bolla_ordine_pdf(request, pk):
-    ordine = get_object_or_404(Ordine, pk=pk)
+    ordine = get_object_or_404(Ordine.objects.select_related('modello', 'modello__cliente'), pk=pk)
     
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    # Usiamo margini più stretti per far stare tutto comodamente
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
     
     elements, styles = _pdf_base_elements("Bolla d'Ordine")
-    
-    # Dati Ordine
-    data_ordine = [
-        [Paragraph("<b>Ordine N:</b>", styles['Normal']), Paragraph(f"#{ordine.id}", styles['Normal'])],
-        [Paragraph("<b>Data Ordine:</b>", styles['Normal']), Paragraph(ordine.data_ordine.strftime('%d/%m/%Y'), styles['Normal'])],
-        [Paragraph("<b>Cliente:</b>", styles['Normal']), Paragraph(ordine.modello.cliente.nome, styles['Normal'])],
-        [Paragraph("<b>Modello:</b>", styles['Normal']), Paragraph(ordine.modello.nome, styles['Normal'])],
-    ]
-    table_info = Table(data_ordine, colWidths=[3*cm, None])
-    table_info.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-    ]))
-    elements.append(table_info)
-    elements.append(Spacer(1, 1*cm)) # Aggiunge spazio verticale
 
-    # Dettagli Taglie
-    elements.append(Paragraph("Dettagli Quantità per Taglia", styles['h2']))
+    # Stili personalizzati aggiuntivi
+    style_header_field = ParagraphStyle(name='HeaderField', fontSize=8, fontName='Helvetica')
+    style_header_value = ParagraphStyle(name='HeaderValue', fontSize=10, fontName='Helvetica-Bold',bottomMargin=1.5*cm)
+    style_section = ParagraphStyle(name='Section', fontSize=10, fontName='Helvetica-Bold', spaceBefore=8, spaceAfter=4)
+    style_component_label = ParagraphStyle(name='ComponentLabel', fontSize=9, fontName='Helvetica-Bold')
+    style_component_value = ParagraphStyle(name='ComponentValue', fontSize=9, fontName='Helvetica', leading=11)
     
-    data_dettagli = [["Taglia", "Quantità", "Note"]]
-    for dettaglio in ordine.dettagli.all().order_by('taglia__numero'):
-        data_dettagli.append([str(dettaglio.taglia), str(dettaglio.quantita), dettaglio.note or ''])
+    # --- INTESTAZIONE DETTAGLIATA ---
+    info_header_data = [
+        [
+            Paragraph(f"<b>Ordine N:</b> {ordine.id}<br/>"
+                      f"<b>Data:</b> {ordine.data_ordine.strftime('%d/%m/%Y')}<br/>"
+                      f"<b>Cliente:</b> {ordine.modello.cliente.nome}", styles['Normal']),
+            Paragraph(f"<b>Modello:</b> {ordine.modello.nome}<br/>"
+                      f"<b>Articolo:</b> {ordine.modello.codice_articolo or '-'}<br/>"
+                      f"<b>Forma:</b> {ordine.modello.forma or '-'}", styles['Normal']),
+            Image(ordine.modello.foto.path, width=4*cm, height=4*cm) if ordine.modello.foto else Paragraph("Nessuna Foto", styles['Italic'])
+        ]
+    ]
+    info_table = Table(info_header_data, colWidths=[7*cm, 7*cm, 4*cm])
+    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+    elements.append(info_table)
+
+    # --- TABELLA NUMERAZIONE COMPLETA ---
+    elements.append(Paragraph("Dettagli Quantità per Taglia", style_section))
     
-    data_dettagli.append(["", "", ""]) # Riga vuota di spaziatura
-    data_dettagli.append([Paragraph("<b>TOTALE PAIA</b>", styles['Normal']), Paragraph(f"<b>{ordine.quantita_totale}</b>", styles['Normal']), ""])
+    tutte_le_taglie = Taglia.objects.order_by('numero').all()
+    dettagli_map = {d.taglia_id: d for d in ordine.dettagli.all()}
+
+    header_row = [Paragraph(str(t), style_header_field) for t in tutte_le_taglie]
+    quantita_row = [Paragraph(str(dettagli_map.get(t.pk).quantita if t.pk in dettagli_map else ''), style_header_value) for t in tutte_le_taglie]
     
-    table_dettagli = Table(data_dettagli, colWidths=[4*cm, 4*cm, 7*cm])
-    table_dettagli.setStyle(TableStyle([
+    col_width = (18 * cm) / len(tutte_le_taglie) # Larghezza colonne dinamica
+    numerazione_table = Table([header_row, quantita_row], colWidths=[col_width]*len(header_row))
+    numerazione_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('ALIGN', (1,1), (1,-1), 'CENTER'),
-        ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'),
-        ('LINEABOVE', (0,-1), (-1,-1), 1, colors.black),
-        ('GRID', (0,0), (-1,-2), 1, colors.black),
-        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
     ]))
-    elements.append(table_dettagli)
+    elements.append(numerazione_table)
     
+    # Aggiungiamo il totale paia
+    elements.append(Spacer(1, 0.2*cm))
+    elements.append(Paragraph(f"<b>TOTALE PAIA: {ordine.quantita_totale}</b>", ParagraphStyle(name='Total', alignment=TA_RIGHT, fontName='Helvetica-Bold')))
+    elements.append(Spacer(1, 0.5*cm))
+
+    # --- SEZIONE COMPONENTI DINAMICA ---
+    elements.append(Paragraph("Distinta Componenti", style_section))
+    
+    componenti_del_modello = ordine.modello.componenti.select_related('nome_componente', 'colore').all()
+    if componenti_del_modello:
+        componenti_data = [[
+            Paragraph('COMPONENTE', style_header_field),
+            Paragraph('MATERIALE / DETTAGLI', style_header_field)
+        ]]
+        for comp in componenti_del_modello:
+            colore_info = f"<br/><b>Colore:</b> {comp.colore.nome if comp.colore else '-'}"
+            codici_info = f"<br/><b>Cod. Art:</b> {comp.cod_componente or '-'} / <b>Cod. Col:</b> {comp.cod_colore or '-'}"
+            descrizione_par = Paragraph(f"{comp.descrizione or '-'}{colore_info}{codici_info}", style_component_value)
+            
+            componenti_data.append([
+                Paragraph(comp.nome_componente.nome, style_component_label),
+                descrizione_par
+            ])
+        
+        componenti_table = Table(componenti_data, colWidths=[5*cm, 13*cm])
+        componenti_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+        ]))
+        elements.append(componenti_table)
+    else:
+        elements.append(Paragraph("Nessun componente di base definito per questo modello.", styles['Italic']))
+        
+    # --- NOTE ---
+    if ordine.note:
+        elements.append(Spacer(1, 0.5*cm))
+        note_table = Table([[Paragraph('NOTE ORDINE', style_section)], [Paragraph(ordine.note, style_component_value)]], colWidths=[18*cm], rowHeights=[None, 2*cm])
+        note_table.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        elements.append(note_table)
+
     doc.build(elements)
     
     response = HttpResponse(content_type='application/pdf')
@@ -692,43 +798,96 @@ def bolla_ordine_pdf(request, pk):
 
 @login_required
 def scheda_materiali_pdf(request, pk):
-    ordine = get_object_or_404(Ordine, pk=pk)
+    ordine = get_object_or_404(Ordine.objects.select_related('modello', 'modello__cliente'), pk=pk)
     materiali = ordine.get_materiali_necessari()
     
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
     
-    elements, styles = _pdf_base_elements("Scheda Materiali Necessari")
+    elements, styles = _pdf_base_elements("")
     
-    elements.append(Paragraph(f"<b>Ordine:</b> #{ordine.id} - <b>Modello:</b> {ordine.modello.nome}", styles['Normal']))
+    style_title = ParagraphStyle(
+        name='Title', 
+        fontSize=20, 
+        fontName='Helvetica-Bold', 
+        alignment=TA_CENTER,
+        spaceAfter=1*cm  # MODIFICA: Aggiunto 1 cm di spazio SOTTO il titolo
+    )
+    
+    # --- NUOVO STILE PER LE INTESTAZIONI DELLA TABELLA ---
+    style_table_header = ParagraphStyle(
+        name='TableHeader',
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        textColor=colors.whitesmoke
+    )
+
+    # --- INTESTAZIONE CON DETTAGLI ORDINE E FOTO ---
+    quantita_totale = ordine.dettagli.aggregate(Sum('quantita'))['quantita__sum'] or 0
+    
+    info_header_data = [
+        [
+            Paragraph(f"<b>Ordine N:</b> {ordine.id}<br/>"
+                      f"<b>Data:</b> {ordine.data_ordine.strftime('%d/%m/%Y')}<br/>"
+                      f"<b>Cliente:</b> {ordine.modello.cliente.nome}", styles['Normal']),
+            Paragraph(f"<b>Modello:</b> {ordine.modello.nome}<br/>"
+                      f"<b>Articolo:</b> {ordine.modello.codice_articolo or '-'}<br/>"
+                      f"<b>Totale Paia:</b> {quantita_totale}", styles['Normal']),
+            Image(ordine.modello.foto.path, width=4*cm, height=4*cm) if ordine.modello.foto else Paragraph("Nessuna Foto", styles['Italic'])
+        ]
+    ]
+    info_table = Table(info_header_data, colWidths=[7*cm, 6*cm, 4*cm])
+    info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+    elements.append(info_table)
     elements.append(Spacer(1, 1*cm))
 
-    # Tabella Materiali
-    data_materiali = [["Componente", "Colore", "Unità", "Sup. Tot (m²)", "Sup. Tot (Piedi²)"]]
-    
-    for key, misure in materiali.items():
-        nome_componente, colore = key
-        data_materiali.append([
-            Paragraph(nome_componente, styles['BodyText']),
-            Paragraph(colore.nome if colore else "-", styles['BodyText']),
-            misure['unita_prodotte'],
-            f"{misure.get('tot_superficie_mq', 0):.4f}",
-            f"{misure.get('tot_superficie_piedi_quadri', 0):.4f}",
-        ])
+    # --- TABELLA MATERIALI DINAMICA ---
+    elements.append(Paragraph("Riepilogo Fabbisogno per Componente", styles['h2']))
+
+    if materiali:
+        # Usa il nuovo stile nelle intestazioni
+        data_materiali = [[
+            Paragraph('COMPONENTE', style_table_header),
+            Paragraph('MATERIALE / DETTAGLI', style_table_header),
+            Paragraph('QUANTITÀ TOTALE', style_table_header)
+        ]]
         
-    table_materiali = Table(data_materiali)
-    table_materiali.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.royalblue),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('ALIGN', (2,1), (-1,-1), 'RIGHT'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 12),
-        ('TOPPADDING', (0,0), (-1,0), 12),
-        ('BACKGROUND', (0,1), (-1,-1), colors.beige),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-    ]))
-    elements.append(table_materiali)
+        for key, misure in sorted(materiali.items()):
+            nome_comp, colore, desc, cod_comp, cod_col = key
+            
+            colore_info = f"<br/><b>Colore:</b> {colore.nome if colore else '-'}"
+            codici_info = f"<br/><b>Cod. Art:</b> {cod_comp or '-'} / <b>Cod. Col:</b> {cod_col or '-'}"
+            descrizione_par = Paragraph(f"{desc or '-'}{colore_info}{codici_info}", styles['Normal'])
+            
+            if misure['unita_misura'] == 'SUPERFICIE':
+                quantita_str = (
+                    f"<b>{misure['tot_superficie_mq']:.4f}</b> m²<br/>"
+                    f"<i>({misure['tot_superficie_piedi_quadri']:.4f} ft²)</i>"
+                )
+            else:
+                quantita_str = f"<b>{misure['tot_quantita_unitaria']:.2f}</b> {misure['unita_misura_display']}"
+            
+            quantita_par = Paragraph(quantita_str, styles['Normal'])
+            
+            data_materiali.append([
+                Paragraph(nome_comp, styles['Normal']),
+                descrizione_par,
+                quantita_par
+            ])
+            
+        table_materiali = Table(data_materiali, colWidths=[4*cm, 9*cm, 4*cm])
+        table_materiali.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.darkgrey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('ALIGN', (2,1), (2,-1), 'RIGHT'),
+        ]))
+        elements.append(table_materiali)
+    else:
+        elements.append(Paragraph("Nessun materiale calcolato per questo ordine.", styles['Italic']))
     
     doc.build(elements)
     
@@ -738,54 +897,90 @@ def scheda_materiali_pdf(request, pk):
     buffer.close()
     return response
 
+
 @login_required
 def scheda_modello_pdf(request, pk):
-    modello = get_object_or_404(Modello, pk=pk)
+    modello = get_object_or_404(Modello.objects.select_related('cliente'), pk=pk)
     
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5*cm, bottomMargin=2.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
     
     elements, styles = _pdf_base_elements("Scheda Tecnica Modello")
     
-    # Dati Modello e Foto
-    info_data = [
+    # Stili personalizzati aggiuntivi
+    styles.add(ParagraphStyle(name='Italic', fontName='Helvetica-Oblique', fontSize=9))
+    styles.add(ParagraphStyle(name='ComponentHeader', fontName='Helvetica-Bold', fontSize=10, spaceBefore=8, spaceAfter=4))
+    styles.add(ParagraphStyle(name='ComponentDetails', fontName='Helvetica', fontSize=8, leading=10))
+
+    # --- INTESTAZIONE CON DETTAGLI MODELLO ---
+    info_header_data = [
         [
             Paragraph(f"<b>Modello:</b> {modello.nome}<br/>"
-                      f"<b>Cliente:</b> {modello.cliente.nome}<br/>"
+                      f"<b>Articolo:</b> {modello.codice_articolo or '-'}<br/>"
+                      f"<b>Forma:</b> {modello.forma or '-'}", styles['Normal']),
+            Paragraph(f"<b>Cliente:</b> {modello.cliente.nome}<br/>"
                       f"<b>Tipo:</b> {modello.get_tipo_display()}", styles['Normal']),
             Image(modello.foto.path, width=4*cm, height=4*cm) if modello.foto else Paragraph("Nessuna Foto", styles['Italic'])
         ]
     ]
-    info_table = Table(info_data, colWidths=[10*cm, 5*cm])
+    info_table = Table(info_header_data, colWidths=[7*cm, 6*cm, 4*cm])
     info_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
     elements.append(info_table)
-    elements.append(Spacer(1, 1*cm))
+    elements.append(Spacer(1, 0.8*cm))
     
-    # Componenti e Misure
-    elements.append(Paragraph("Componenti e Misure per Taglia", styles['h2']))
+    # --- SEZIONE COMPONENTI E MISURE ---
+    elements.append(Paragraph("Distinta Base e Misure per Taglia", styles['h2']))
     
-    for componente in modello.componenti.all():
-        elements.append(Spacer(1, 0.5*cm))
-        elements.append(Paragraph(f"<b>Componente:</b> {componente.nome_componente.nome} - <b>Colore:</b> {componente.colore or '-'}", styles['h3']))
-        
-        articoli = componente.articoli.all().order_by('taglia__numero')
-        if articoli:
-            data_articoli = [["Taglia", "Superficie (m²)", "Superficie (Piedi²)"]]
-            for articolo in articoli:
-                mq_str = f"{articolo.superficie_mq:.4f}" if articolo.superficie_mq is not None else "N/D"
-                pq_str = f"{articolo.superficie_piedi_quadri:.4f}" if articolo.superficie_piedi_quadri is not None else "N/D"
-                data_articoli.append([str(articolo.taglia), mq_str, pq_str])
-            
-            table_articoli = Table(data_articoli, colWidths=[4*cm, 4*cm, 4*cm])
-            table_articoli.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-                ('GRID', (0,0), (-1,-1), 0.5, colors.darkgrey),
-                ('ALIGN', (1,1), (-1,-1), 'RIGHT'),
-            ]))
-            elements.append(table_articoli)
-        else:
-            elements.append(Paragraph("Nessuna misura specifica definita per questo componente.", styles['Italic']))
+    tutte_le_taglie = Taglia.objects.order_by('numero').all()
 
+    for componente in modello.componenti.select_related('nome_componente', 'colore').all():
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Dettagli componente
+        colore_info = f"<b>Colore:</b> {componente.colore.nome if componente.colore else '-'}"
+        codici_info = f"<b>Cod. Art:</b> {componente.cod_componente or '-'} / <b>Cod. Col:</b> {componente.cod_colore or '-'}"
+        component_details_text = f"{componente.descrizione or '-'}<br/>{colore_info}<br/>{codici_info}"
+        
+        component_header_table = Table([
+            [
+                Paragraph(f"{componente.nome_componente.nome}", styles['ComponentHeader']),
+                Paragraph(component_details_text, styles['ComponentDetails'])
+            ]
+        ], colWidths=[5*cm, 12*cm])
+        component_header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+        elements.append(component_header_table)
+        elements.append(Spacer(1, 0.2*cm))
+        
+        # Tabella Misure per il componente
+        articoli_map = {art.taglia_id: art for art in componente.articoli.all()}
+        
+        if componente.unita_misura == 'SUPERFICIE':
+            data_articoli = [['Taglia', 'Superficie (m²)', 'Superficie (ft²)']]
+            for taglia in tutte_le_taglie:
+                articolo = articoli_map.get(taglia.pk)
+                mq_str = f"{articolo.superficie_mq:.4f}" if articolo and articolo.superficie_mq is not None else "N/D"
+                pq_str = f"{articolo.superficie_piedi_quadri:.4f}" if articolo and articolo.superficie_piedi_quadri is not None else "N/D"
+                data_articoli.append([str(taglia), mq_str, pq_str])
+            col_widths = [2*cm, 3*cm, 3*cm]
+        else: # PEZZI, PAIA, METRI
+            data_articoli = [['Taglia', f"Quantità ({componente.get_unita_misura_display()})"]]
+            for taglia in tutte_le_taglie:
+                articolo = articoli_map.get(taglia.pk)
+                qta_str = f"{articolo.quantita_unitaria:.2f}" if articolo and articolo.quantita_unitaria is not None else "N/D"
+                data_articoli.append([str(taglia), qta_str])
+            col_widths = [2*cm, 4*cm]
+            
+        table_articoli = Table(data_articoli, colWidths=col_widths)
+        table_articoli.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.darkgrey),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(table_articoli)
+
+    # --- SEZIONE NOTE FINALE ---
     if modello.note:
         elements.append(Spacer(1, 1*cm))
         elements.append(Paragraph("Note sul Modello", styles['h2']))
@@ -904,109 +1099,108 @@ class GeneraBolleView(LoginRequiredMixin, FormView):
         return context
 
     def form_valid(self, form):
-        ordine = get_object_or_404(Ordine, pk=self.kwargs['pk'])
+        ordine = get_object_or_404(Ordine.objects.select_related('modello', 'modello__cliente'), pk=self.kwargs['pk'])
         max_totale = form.cleaned_data['max_totale']
         max_per_taglia = form.cleaned_data.get('max_per_taglia')
 
-        dettagli = ordine.dettagli.all()
+        dettagli = ordine.dettagli.select_related('taglia').all()
         bolle_distribuite = crea_distribuzione_bolle(dettagli, max_totale, max_per_taglia)
-
+        
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm, leftMargin=1*cm, rightMargin=1*cm)
+        
         styles = getSampleStyleSheet()
-        style_bold = ParagraphStyle(name='Bold', parent=styles['Normal'], fontName='Helvetica-Bold')
-        
+        style_title = ParagraphStyle(name='Title', fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=6)
+        style_header_field = ParagraphStyle(name='HeaderField', fontSize=7, fontName='Helvetica')
+        style_header_value = ParagraphStyle(name='HeaderValue', fontSize=9, fontName='Helvetica-Bold')
+        style_section = ParagraphStyle(name='Section', fontSize=9, fontName='Helvetica-Bold', spaceBefore=6, spaceAfter=2)
+        style_component_label = ParagraphStyle(name='ComponentLabel', fontSize=8, fontName='Helvetica-Bold')
+        style_component_value = ParagraphStyle(name='ComponentValue', fontSize=8, fontName='Helvetica', leading=10) # Aggiunto leading per spaziatura
+
         elements = []
-        
         total_bolle = len(bolle_distribuite)
-        componenti_del_modello = list(ordine.modello.componenti.select_related('nome_componente', 'colore').all())
+        
+        # Recupera tutte le taglie una sola volta
+        tutte_le_taglie = Taglia.objects.order_by('numero').all()
 
         for i, bolla in enumerate(bolle_distribuite, 1):
-            elements.append(Paragraph(f"Bolla di Lavoro {i} di {total_bolle}", styles['h2']))
-            
-            info_data = [
-                [Paragraph('<b>Cliente:</b>', styles['Normal']), Paragraph(ordine.modello.cliente.nome, styles['Normal'])],
-                [Paragraph('<b>Modello:</b>', styles['Normal']), Paragraph(ordine.modello.nome, styles['Normal'])],
-                [Paragraph('<b>Data Ordine:</b>', styles['Normal']), Paragraph(ordine.data_ordine.strftime('%d/%m/%Y'), styles['Normal'])],
+            # --- INTESTAZIONE ---
+            header_data = [
+                [Paragraph('BOLLA DI LAVORAZIONE', style_title), '', ''],
+                [Paragraph(f'ORDINE N. {ordine.id}', style_header_value), '', Paragraph(f'BOLLA N. {i}/{total_bolle}', style_header_value)],
+                [Paragraph('ARTICOLO', style_header_field), Paragraph('DATA ORDINE', style_header_field), Paragraph('DATA CONSEGNA', style_header_field)],
+                [
+                    Paragraph(ordine.modello.codice_articolo or '-', style_header_value),
+                    Paragraph(ordine.data_ordine.strftime('%d/%m/%Y'), style_header_value),
+                    Paragraph(ordine.data_consegna.strftime('%d/%m/%Y') if ordine.data_consegna else '-', style_header_value)
+                ],
+                [Paragraph('CLIENTE', style_header_field), '', Paragraph('PAIA', style_header_field)],
+                [Paragraph(ordine.modello.cliente.nome, style_header_value), '', Paragraph(str(sum(bolla.values())), style_header_value)],
+                [Paragraph('MODELLO', style_header_field), Paragraph('FORMA', style_header_field), ''],
+                [Paragraph(ordine.modello.nome, style_header_value), Paragraph(ordine.modello.forma or '-', style_header_value), '']
             ]
-            info_table_sx = Table(info_data, colWidths=[3*cm, 7*cm])
-            info_table_sx.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-
-            if ordine.modello.foto:
-                try:
-                    immagine = Image(ordine.modello.foto.path, width=4*cm, height=4*cm)
-                except Exception:
-                    immagine = Paragraph("Immagine non trovata", styles['Normal'])
-            else:
-                immagine = Paragraph("Nessuna foto", styles['Normal'])
-            
-            header_table = Table([[info_table_sx, immagine]], colWidths=[11*cm, None])
-            header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-            elements.append(header_table)
-            elements.append(Spacer(1, 0.8*cm))
-
-            elements.append(Paragraph("Riepilogo Paia", styles['h2']))
-            taglie_ordinate = sorted(bolla.keys(), key=lambda t: t.numero)
-            
-            # --- RIGA MODIFICATA ---
-            # Usiamo str(t) invece di str(t.numero) per invocare il nostro __str__ personalizzato
-            header_row = [Paragraph(str(t), style_bold) for t in taglie_ordinate]
-            # --- FINE RIGA MODIFICATA ---
-            
-            quantita_row = [Paragraph(str(bolla[t]), styles['Normal']) for t in taglie_ordinate]
-            quantita_totale_bolla = sum(bolla.values())
-
-            header_row.append(Paragraph("TOTALE", style_bold))
-            quantita_row.append(Paragraph(str(quantita_totale_bolla), style_bold))
-
-            table_data = [header_row, quantita_row]
-            bolla_table = Table(table_data)
-            bolla_table.setStyle(TableStyle([
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            header_table = Table(header_data, colWidths=[6.5*cm, 6.5*cm, 6*cm])
+            header_table.setStyle(TableStyle([
+                ('SPAN', (0,0), (2,0)), ('ALIGN', (2,1), (2,1), 'RIGHT'),
+                ('LINEBELOW', (0,1), (2,1), 0.5, colors.black), ('LINEBELOW', (0,3), (2,3), 0.5, colors.black),
+                ('LINEBELOW', (0,5), (2,5), 0.5, colors.black), ('LINEBELOW', (0,7), (1,7), 0.5, colors.black),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 1), ('TOPPADDING', (0,0), (-1,-1), 1),
             ]))
-            elements.append(bolla_table)
+            elements.append(header_table)
 
-            # ... resto della vista invariato ...
-            elements.append(Spacer(1, 1*cm))
-            elements.append(Paragraph("Distinta Materiali", styles['h2']))
+            # --- NUMERAZIONE (Modificata per mostrare sempre tutte le taglie) ---
+            elements.append(Paragraph('NUMERAZIONE', style_section))
+            header_row = [Paragraph(str(t), style_header_field) for t in tutte_le_taglie]
+            quantita_row = [Paragraph(str(bolla.get(t, '')), style_header_value) for t in tutte_le_taglie]
+            col_width = (19 * cm) / len(tutte_le_taglie) # Calcola larghezza colonne dinamicamente
+            numerazione_table = Table([header_row, quantita_row], colWidths=[col_width]*len(header_row))
+            numerazione_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black), ('ALIGN', (0,0), (-1,-1), 'CENTER')]))
+            elements.append(numerazione_table)
             
-            num_righe = ceil(len(componenti_del_modello) / 2)
-            colonna_sx_comp = componenti_del_modello[:num_righe]
-            colonna_dx_comp = componenti_del_modello[num_righe:]
-            
-            style_header_mat = ParagraphStyle(name='MatHeader', parent=style_bold, fontSize=9)
-            style_body_mat = ParagraphStyle(name='MatBody', parent=styles['Normal'], fontSize=8)
+            # --- SEZIONE COMPONENTI DINAMICA CON QUANTITÀ (Modificata) ---
+            elements.append(Spacer(1, 0.4*cm))
+            materiali_per_bolla = ordine.get_materiali_necessari(bolla=bolla)
+            componenti_data = [[
+                Paragraph('COMPONENTE', style_header_field),
+                Paragraph('MATERIALE / CODICI', style_header_field),
+                Paragraph('QUANTITÀ NECESSARIA', style_header_field)
+            ]]
 
-            materiali_sx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
-            for comp in colonna_sx_comp:
-                colore = comp.colore.nome if comp.colore else "Non specificato"
-                materiali_sx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
+            for key, misure in materiali_per_bolla.items():
+                nome_comp, colore, desc, cod_comp, cod_col = key
+                colore_info = f"<br/><b>Colore:</b> {colore.nome if colore else '-'}"
+                codici_info = f"<br/><b>Cod. Art:</b> {cod_comp or '-'} / <b>Cod. Col:</b> {cod_col or '-'}"
+                descrizione_par = Paragraph(f"{desc or '-'}{colore_info}{codici_info}", style_component_value)
+                
+                # Logica per mostrare entrambe le superfici o altre unità
+                if misure['unita_misura'] == 'SUPERFICIE':
+                    quantita_str = (
+                        f"{misure['tot_superficie_mq']:.4f} m²<br/>"
+                        f"{misure['tot_superficie_piedi_quadri']:.4f} ft²"
+                    )
+                else:
+                    quantita_str = f"{misure['tot_quantita_unitaria']:.2f} {misure['unita_misura_display']}"
+                
+                quantita_par = Paragraph(quantita_str, style_component_value)
+                componenti_data.append([Paragraph(nome_comp, style_component_label), descrizione_par, quantita_par])
             
-            materiali_dx_data = [[Paragraph("Componente", style_header_mat), Paragraph("Colore", style_header_mat)]]
-            for comp in colonna_dx_comp:
-                colore = comp.colore.nome if comp.colore else "Non specificato"
-                materiali_dx_data.append([Paragraph(comp.nome_componente.nome, style_body_mat), Paragraph(colore, style_body_mat)])
-
-            table_sx = Table(materiali_sx_data, colWidths=[6*cm, 6*cm])
-            table_dx = Table(materiali_dx_data, colWidths=[6*cm, 6*cm])
+            componenti_table = Table(componenti_data, colWidths=[4*cm, 11*cm, 4*cm])
+            componenti_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            ]))
+            elements.append(componenti_table)
             
-            common_style = TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.darkgrey),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-                ('TOPPADDING', (0,0), (-1,-1), 5),
-            ])
-            table_sx.setStyle(common_style)
-            table_dx.setStyle(common_style)
-
-            container_table = Table([[table_sx, table_dx]], colWidths=[12.5*cm, 12.5*cm])
-            container_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
-            elements.append(container_table)
+            # --- NOTE E FOOTER (invariati) ---
+            elements.append(Spacer(1, 0.4*cm))
+            note_table = Table([[Paragraph('NOTE', style_section)], [Paragraph(ordine.note or '', style_component_value)]], colWidths=[19*cm], rowHeights=[None, 2*cm])
+            note_table.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,1), (0,1), 'TOP')]))
+            elements.append(note_table)
+            elements.append(Spacer(1, 0.5*cm))
+            footer_table = Table([[Paragraph('TIMBRO', style_section), Paragraph('CARTELLINO', style_section)]], colWidths=[9.5*cm, 9.5*cm], rowHeights=[2.5*cm])
+            footer_table.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+            elements.append(footer_table)
             
             if i < total_bolle:
                 elements.append(PageBreak())

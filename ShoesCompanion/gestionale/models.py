@@ -95,6 +95,8 @@ class Modello(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='modelli_creati')
+    codice_articolo = models.CharField(max_length=100, blank=True, null=True, verbose_name="Articolo (Codice)")
+    forma = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
         verbose_name_plural = "Modelli"
@@ -156,6 +158,11 @@ class Componente(models.Model):
 
     colore = models.ForeignKey(Colore, on_delete=models.SET_NULL, null=True, blank=True, help_text="Colore specifico per questo componente in questo modello")
     note = models.TextField(blank=True, null=True)
+     # --- NUOVI CAMPI AGGIUNTI ---
+    descrizione = models.CharField(max_length=255, blank=True, null=True, verbose_name="Descrizione Materiale")
+    cod_componente = models.CharField(max_length=50, blank=True, null=True, verbose_name="Cod. Articolo/Componente")
+    cod_colore = models.CharField(max_length=50, blank=True, null=True, verbose_name="Cod. Colore Fornitore")
+    # --- FINE NUOVI CAMPI ---
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -211,6 +218,7 @@ class Ordine(models.Model):
     ]
     modello = models.ForeignKey(Modello, on_delete=models.CASCADE, related_name='ordini')
     data_ordine = models.DateTimeField(default=timezone.now)
+    data_consegna = models.DateField(blank=True, null=True, verbose_name="Data di Consegna Prevista")
     stato = models.CharField(max_length=20, choices=STATO_ORDINE_CHOICES, default='BOZZA')
     note = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -232,49 +240,63 @@ class Ordine(models.Model):
         return sum(d.quantita for d in self.dettagli.all() if d.quantita)
 
     # METODO COMPLETAMENTE RISCRITTO
-    def get_materiali_necessari(self):
+    def get_materiali_necessari(self, bolla=None):
         """
-        Calcola la somma dei materiali (superfici o quantità) per ogni
-        tipo di componente/colore necessario per completare l'ordine.
+        Calcola la somma dei materiali necessari.
+        - Se 'bolla' è None, calcola per l'intero ordine.
+        - Se 'bolla' è un dizionario {taglia_obj: quantita}, calcola solo per quella bolla.
         """
         materiali = {}
-        dettagli_ordine = self.dettagli.select_related('taglia').all()
+        
+        if bolla:
+            dettagli_per_calcolo = bolla.items()
+        else:
+            dettagli_per_calcolo = self.dettagli.values_list('taglia', 'quantita')
+
         componenti_modello = self.modello.componenti.select_related('nome_componente', 'colore').all()
-        articoli_modello = Articolo.objects.filter(componente__modello=self.modello).select_related('taglia', 'componente')
+        articoli_modello = Articolo.objects.filter(componente__in=componenti_modello).select_related('taglia')
+        
         articoli_map = {(a.componente_id, a.taglia_id): a for a in articoli_modello}
 
-        for dettaglio in dettagli_ordine:
-            quantita_per_taglia = dettaglio.quantita
-            if not quantita_per_taglia:
+        for taglia_ref, quantita_per_taglia in dettagli_per_calcolo:
+            taglia_id = taglia_ref.id if isinstance(taglia_ref, Taglia) else taglia_ref
+
+            if not quantita_per_taglia or quantita_per_taglia == 0:
                 continue
 
             for componente in componenti_modello:
-                articolo = articoli_map.get((componente.id, dettaglio.taglia_id))
+                articolo = articoli_map.get((componente.id, taglia_id))
                 if not articolo:
                     continue
 
-                key = (componente.nome_componente.nome, componente.colore)
+                key = (
+                    componente.nome_componente.nome, 
+                    componente.colore,
+                    componente.descrizione,
+                    componente.cod_componente,
+                    componente.cod_colore
+                )
+                
+                # Inizializza il dizionario per la chiave se non esiste
                 misure = materiali.setdefault(key, {
                     'unita_misura': componente.unita_misura,
                     'unita_misura_display': componente.get_unita_misura_display(),
-                    'unita_prodotte': 0,
+                    'tot_quantita_unitaria': Decimal('0.0'),
                     'tot_superficie_mq': Decimal('0.0'),
-                    'tot_superficie_piedi_quadri': Decimal('0.0'),
-                    'tot_quantita': Decimal('0.0'),
+                    'tot_superficie_piedi_quadri': Decimal('0.0')
                 })
-
-                misure['unita_prodotte'] += quantita_per_taglia
 
                 if componente.unita_misura == 'SUPERFICIE':
                     if articolo.superficie_mq is not None:
                         misure['tot_superficie_mq'] += articolo.superficie_mq * quantita_per_taglia
                     if articolo.superficie_piedi_quadri is not None:
                         misure['tot_superficie_piedi_quadri'] += articolo.superficie_piedi_quadri * quantita_per_taglia
-                else: # PEZZI, PAIA, METRI
+                else:  # PEZZI, PAIA, METRI
                     if articolo.quantita_unitaria is not None:
-                        misure['tot_quantita'] += articolo.quantita_unitaria * quantita_per_taglia
+                        misure['tot_quantita_unitaria'] += articolo.quantita_unitaria * quantita_per_taglia
                         
         return materiali
+
 
 class DettaglioOrdine(models.Model):
     ordine = models.ForeignKey(Ordine, on_delete=models.CASCADE, related_name='dettagli')

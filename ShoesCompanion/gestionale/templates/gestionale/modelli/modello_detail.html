@@ -72,58 +72,61 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Componente</th>
-                                <th class="text-center">Stato</th>
-                                <th>Materiale / Colore</th>
-                                <th class="text-center">Misure Definite</th>
-                                <th class="text-center">Azioni Guidate</th>
+                                <th>Descrizione Materiale</th>
+                                <th>Colore</th>
+                                <th>Codici</th>
+                                <th class="text-center">Note</th>
+                                <th class="text-center">Azioni</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for componente in modello.componenti.all %}
-                                {% with articoli_count=componente.articoli.count %}
                                 <tr>
                                     <td class="fw-bold">{{ componente.nome_componente.nome }}</td>
-                                    
-                                    <td class="text-center">
-                                        {% if componente.colore and articoli_count > 0 %}
-                                            <span class="badge bg-success">Completo</span>
-                                        {% else %}
-                                            <span class="badge bg-warning text-dark">Da Definire</span>
-                                        {% endif %}
-                                    </td>
-
+                                    <td>{{ componente.descrizione|default:"-"|truncatechars:25 }}</td>
                                     <td>
                                         {% if componente.colore %}
-                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; color: {% if componente.colore.valore_hex|slice:':1' in '#012345' %}white{% else %}black{% endif %}; border: 1px solid #ccc;">
+                                            <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; color: black; border: 1px solid #ccc;">
                                                 {{ componente.colore.nome }}
                                             </span>
                                         {% else %}
-                                            <span class="text-muted fst-italic">Non specificato</span>
+                                            -
                                         {% endif %}
                                     </td>
-
-                                    <td class="text-center">
-                                        <span class="badge {% if articoli_count > 0 %}bg-info{% else %}bg-secondary{% endif %}">
-                                            {{ articoli_count }}
-                                        </span>
+                                    <td>
+                                        {% if componente.cod_componente %}<span class="badge bg-secondary">Art: {{ componente.cod_componente }}</span>{% endif %}
+                                        {% if componente.cod_colore %}<span class="badge bg-dark">Col: {{ componente.cod_colore }}</span>{% endif %}
                                     </td>
-                                    
                                     <td class="text-center">
-                                        {% if not componente.colore %}
-                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-pen-nib"></i> Definisci Materiale
-                                            </a>
+                                        {% if componente.note %}
+                                            <i class="fas fa-check-circle text-success"></i>
                                         {% else %}
-                                            <a href="{% url 'manage_articoli_componente' componente.pk %}" class="btn btn-success btn-sm">
-                                                <i class="fas fa-ruler-horizontal"></i> Gestisci Misure
-                                            </a>
-                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-outline-secondary btn-sm" title="Modifica">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
+                                            <i class="fas fa-times-circle text-muted"></i>
                                         {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
+                                            <span class="btn btn-outline-info" 
+                                                  data-bs-toggle="tooltip" 
+                                                  data-bs-html="true" 
+                                                  data-bs-placement="left"
+                                                  title="
+                                                      <div class='text-start p-1'>
+                                                      <strong>Materiale:</strong> {{ componente.descrizione|default:'N/D' }} <br>
+                                                      <strong>Cod. Articolo:</strong> {{ componente.cod_componente|default:'N/D' }} <br>
+                                                      <strong>Colore:</strong> {{ componente.colore.nome|default:'-' }} <br>
+                                                      <strong>Cod. Colore:</strong> {{ componente.cod_colore|default:'N/D' }} <br>
+                                                      <hr class='my-1'>
+                                                      <strong>Note:</strong> {{ componente.note|default:'Nessuna'|linebreaksbr }}
+                                                      </div>
+                                                  ">
+                                                <i class="fas fa-eye"></i>
+                                            </span>
+                                            <a href="{% url 'componente_update' componente.pk %}" class="btn btn-outline-primary" title="Modifica Componente"><i class="fas fa-edit"></i></a>
+                                            <a href="{% url 'manage_articoli_componente' componente.pk %}" class="btn btn-outline-success" title="Gestisci Misure"><i class="fas fa-ruler-horizontal"></i></a>
+                                        </div>
                                     </td>
                                 </tr>
-                                {% endwith %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -137,23 +140,21 @@
     </div>
     
     <div class="accordion" id="accordionOrdini">
-        <div class="accordion-item shadow-sm">
-            <h2 class="accordion-header" id="headingOne">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-                    <i class="fas fa-file-invoice-dollar me-2"></i> Ordini per questo Modello ({{ modello.ordini.all.count }})
-                </button>
-            </h2>
-            <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionOrdini">
-                <div class="accordion-body p-0">
-                    {% if modello.ordini.all %}
-                       {% else %}
-                        <div class="alert alert-light m-0 text-center rounded-0" role="alert">
-                            Nessun ordine registrato. <a href="#" class="alert-link">Crea il primo ordine</a>.
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
         </div>
-    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Abilita i tooltip di Bootstrap in tutta la pagina
+document.addEventListener('DOMContentLoaded', function () {
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl, {
+        boundary: document.body, // Impedisce al tooltip di essere tagliato dai bordi
+        customClass: 'tooltip-wide' // Aggiungiamo una classe per renderlo più grande se necessario
+    })
+  })
+});
+</script>
 {% endblock %}

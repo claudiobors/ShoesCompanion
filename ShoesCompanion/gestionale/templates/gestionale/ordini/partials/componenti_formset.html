@@ -2,30 +2,19 @@
 
 {{ componenti_formset.management_form }}
 
-<div id="componenti-forms-container">
+<div id="formset-container">
     {% for form in componenti_formset %}
-        <div class="row mb-2 border-bottom pb-2 align-items-center componente-form-row">
-            {{ form.id }} {# Campo nascosto necessario per il formset #}
-            
-            <div class="col-md-3">
-                {% if form.instance.pk %}
-                    <label class="form-label fw-bold">{{ form.instance.nome_componente.nome }}</label>
-                    {{ form.nome_componente.as_hidden }}
-                {% else %}
-                    {{ form.nome_componente|as_crispy_field }}
-                {% endif %}
-            </div>
-            <div class="col-md-3">
-                {{ form.colore|as_crispy_field }}
-            </div>
-            <div class="col-md-5">
-                {{ form.note|as_crispy_field }}
-            </div>
+        <div class="componente-form-row row mb-3 align-items-center border-bottom pb-2">
+            {{ form.id }}
+            <div class="col-md-3">{{ form.nome_componente|as_crispy_field }}</div>
+            <div class="col-md-2">{{ form.unita_misura|as_crispy_field }}</div>
+            <div class="col-md-3">{{ form.colore|as_crispy_field }}</div>
+            <div class="col-md-3">{{ form.note|as_crispy_field }}</div>
             <div class="col-md-1 text-center">
-                {% if not form.instance.pk and componenti_formset.can_delete %}
-                    {{ form.DELETE }}
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-componente-btn" title="Rimuovi riga">
-                        <i class="fas fa-times"></i>
+                {% if formset.can_delete %}
+                    <div style="display: none;">{{ form.DELETE }}</div>
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-row-btn" title="Rimuovi">
+                        <i class="fas fa-trash"></i>
                     </button>
                 {% endif %}
             </div>
@@ -33,21 +22,28 @@
     {% endfor %}
 </div>
 
-<template id="empty-componente-form-template">
+<template id="empty-form-template">
     {% with componenti_formset.empty_form as form %}
-        <div class="row mb-2 border-bottom pb-2 align-items-center componente-form-row">
+        <div class="componente-form-row row mb-3 align-items-center border-bottom pb-2">
             {{ form.id }}
             <div class="col-md-3">{{ form.nome_componente|as_crispy_field }}</div>
+            <div class="col-md-2">{{ form.unita_misura|as_crispy_field }}</div>
             <div class="col-md-3">{{ form.colore|as_crispy_field }}</div>
-            <div class="col-md-5">{{ form.note|as_crispy_field }}</div>
+            <div class="col-md-3">{{ form.note|as_crispy_field }}</div>
             <div class="col-md-1 text-center">
                 {% if formset.can_delete %}
-                    {{ form.DELETE }}
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-componente-btn" title="Rimuovi riga">
-                        <i class="fas fa-times"></i>
+                    <div style="display: none;">{{ form.DELETE }}</div>
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-row-btn" title="Rimuovi">
+                        <i class="fas fa-trash"></i>
                     </button>
                 {% endif %}
             </div>
         </div>
     {% endwith %}
 </template>
+
+<div class="mt-2">
+    <button type="button" class="btn btn-outline-success btn-sm add-row-btn">
+        <i class="fas fa-plus"></i> Aggiungi Componente
+    </button>
+</div>

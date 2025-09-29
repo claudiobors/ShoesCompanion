@@ -30,11 +30,16 @@ class ModelloForm(forms.ModelForm):
 
     class Meta:
         model = Modello
-        fields = ['cliente', 'nome', 'struttura', 'tipo', 'foto', 'note']
+        # Aggiunti i nuovi campi e rimosse le stringhe a caso
+        fields = [
+            'cliente', 'nome', 'codice_articolo', 'tipo', 'forma', 
+        ]
         widgets = {
             'cliente': forms.Select(attrs={'class': 'form-select'}),
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'codice_articolo': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'forma': forms.TextInput(attrs={'class': 'form-control'}),
             'foto': forms.FileInput(attrs={'class': 'form-control'}),
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
@@ -77,13 +82,20 @@ class TagliaForm(forms.ModelForm):
 class ComponenteForm(forms.ModelForm):
     class Meta:
         model = Componente
-        # AGGIUNTO 'unita_misura'
-        fields = ['modello', 'nome_componente', 'unita_misura', 'colore', 'note']
+        # AGGIUNTI I NUOVI CAMPI
+        fields = [
+            'modello', 'nome_componente', 'unita_misura', 'colore', 
+            'descrizione', 'cod_componente', 'cod_colore', 'note'
+        ]
         widgets = {
             'modello': forms.HiddenInput(),
             'nome_componente': forms.Select(attrs={'class': 'form-select'}),
-            'unita_misura': forms.Select(attrs={'class': 'form-select'}), # AGGIUNTO
+            'unita_misura': forms.Select(attrs={'class': 'form-select'}),
             'colore': forms.Select(attrs={'class': 'form-select'}),
+            # WIDGET PER I NUOVI CAMPI
+            'descrizione': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Es. Pelle di vitello liscia'}),
+            'cod_componente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Codice Art. Fornitore'}),
+            'cod_colore': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Codice Colore Fornitore'}),
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -120,10 +132,12 @@ ArticoloFormSet = inlineformset_factory(
 class OrdineMainForm(forms.ModelForm):
     class Meta:
         model = Ordine
-        fields = ['modello', 'data_ordine', 'stato', 'note']
+        # Aggiunto il campo data_consegna
+        fields = ['modello', 'data_ordine', 'data_consegna', 'stato', 'note']
         widgets = {
             'modello': forms.Select(attrs={'class': 'form-select'}),
             'data_ordine': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'data_consegna': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}), # Widget per DateField
             'stato': forms.Select(attrs={'class': 'form-select'}),
             'note': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
@@ -182,11 +196,11 @@ class StrutturaModelloForm(forms.ModelForm):
             'tipi_componente': "Seleziona i componenti base per questa struttura."
         }
 
-# AGGIORNATO il FormSet per includere il nuovo campo
 ComponentePerOrdineFormSet = inlineformset_factory(
     Modello,
     Componente,
     form=ComponenteForm,
+    # AGGIUNGI 'unita_misura' a questa lista
     fields=('nome_componente', 'unita_misura', 'colore', 'note'),
     extra=1,
     can_delete=True

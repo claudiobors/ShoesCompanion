@@ -1,0 +1,80 @@
+{% extends 'gestionale/base.html' %}
+{% load static %}
+
+{% block title %}Dettaglio: {{ object.nome }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+        <h2 class="mb-2 me-3"><i class="fas fa-puzzle-piece"></i> Dettaglio Tipo Componente</h2>
+        <div class="btn-toolbar">
+            <div class="btn-group me-2 mb-2" role="group">
+                <a href="{% url 'tipocomponente_update' object.pk %}" class="btn btn-primary"><i class="fas fa-edit"></i> Modifica</a>
+                <a href="{% url 'tipocomponente_delete' object.pk %}" class="btn btn-danger"><i class="fas fa-trash"></i> Elimina</a>
+            </div>
+             <div class="btn-group mb-2" role="group">
+                <a href="{% url 'tipocomponente_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list"></i> Torna alla Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Informazioni Principali</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-borderless">
+                <tbody>
+                    <tr>
+                        <th width="20%">Nome</th>
+                        <td><strong>{{ object.nome }}</strong></td>
+                    </tr>
+                    {% if object.descrizione %}
+                    <tr>
+                        <th width="20%">Descrizione</th>
+                        <td style="white-space: pre-wrap;">{{ object.descrizione }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-shoe-prints"></i> Utilizzato nei seguenti Componenti
+                <span class="badge bg-secondary rounded-pill">{{ object.componente_set.all.count }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if object.componente_set.all %}
+                <ul class="list-group list-group-flush">
+                    {% for componente in object.componente_set.all %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                Componente del modello: 
+                                <a href="{{ componente.modello.get_absolute_url }}">
+                                    <strong>{{ componente.modello.nome }}</strong>
+                                </a>
+                                (Cliente: {{ componente.modello.cliente.nome }})
+                            </div>
+                            {% if componente.colore %}
+                                <span class="badge" style="background-color: {{ componente.colore.valore_hex }}; border: 1px solid #ccc; color: black;">
+                                    {{ componente.colore.nome }}
+                                </span>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="alert alert-light m-3 text-center" role="alert">
+                    Questo tipo di componente non è ancora stato utilizzato in nessun modello.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

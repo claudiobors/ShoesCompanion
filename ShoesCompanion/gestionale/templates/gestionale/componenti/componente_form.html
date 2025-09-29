@@ -43,7 +43,6 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                {# ECCO IL CAMPO AGGIUNTO #}
                                 {{ form.unita_misura|as_crispy_field }}
                             </div>
                             <div class="col-md-6 mb-3">
@@ -51,7 +50,18 @@
                                 <small class="form-text text-muted">Non trovi il colore? <a href="{% url 'colore_create' %}?next={{ request.path|urlencode }}" target="_blank">Aggiungine uno nuovo</a>.</small>
                             </div>
                         </div>
-
+                        
+                        <div class="mb-3">
+                            {{ form.descrizione|as_crispy_field }}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.cod_componente|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.cod_colore|as_crispy_field }}
+                            </div>
+                        </div>
                         <div class="mb-3">
                             {{ form.note|as_crispy_field }}
                         </div>
@@ -80,7 +90,6 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Inizializza Select2 per i campi select
     $('form select:visible:not(.select2-hidden-accessible)').addClass('form-select').select2({
         theme: 'bootstrap-5',
         placeholder: $(this).data('placeholder') || 'Seleziona...',
