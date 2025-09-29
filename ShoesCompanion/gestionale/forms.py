@@ -33,6 +33,7 @@ class ModelloForm(forms.ModelForm):
         # Aggiunti i nuovi campi e rimosse le stringhe a caso
         fields = [
             'cliente', 'nome', 'codice_articolo', 'tipo', 'forma', 
+            'struttura', 'foto', 'note'
         ]
         widgets = {
             'cliente': forms.Select(attrs={'class': 'form-select'}),
